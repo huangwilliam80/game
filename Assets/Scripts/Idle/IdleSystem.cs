@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -31,7 +32,7 @@ public class IdleSystem : MonoBehaviour
     [Tooltip("掉落機率／每波")]
     public float dropChance = 0.18f;
 
-    readonly List<StageDef> stages = new();
+    readonly List<StageDef> stages = new List<StageDef>();
     public IReadOnlyList<StageDef> Stages => stages;
 
     float waveTimer, payoutTimer;

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -12,8 +13,8 @@ public class DormBattleView : MonoBehaviour
     public List<RectTransform> bedSlots;  // 最多 6 張床
     public GameObject ghostPrefab;        // 小鬼模板（色塊即可）
 
-    readonly List<GameObject> ghostPool = new();
-    readonly List<float> ghostHp = new();
+    readonly List<GameObject> ghostPool = new List<GameObject>();
+    readonly List<float> ghostHp = new List<float>();
     int activeGhosts;
     float animTimer;
 

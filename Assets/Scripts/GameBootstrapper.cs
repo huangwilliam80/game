@@ -1,6 +1,10 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.UI;   // Unity 6 預設新輸入系統時才編譯這行
+#endif
 using UnityEngine.UI;
 
 /// <summary>
@@ -266,7 +270,14 @@ public class GameBootstrapper : MonoBehaviour
         var es = new GameObject("EventSystem");
         es.transform.SetParent(rootRT, false);
         es.AddComponent<EventSystem>();
-        es.AddComponent<InputSystemUIInputModule>();
+#if ENABLE_INPUT_SYSTEM && UNITY_6000_0_OR_NEWER
+        // Unity 6：新輸入系統的 UI 模組（需要 com.unity.inputsystem 套件）
+        es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#elif ENABLE_LEGACY_INPUT_MANAGER
+        es.AddComponent<StandaloneInputModule>();   // 舊輸入系統退回方案
+#else
+        es.AddComponent<StandaloneInputModule>();
+#endif
     }
 
     static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero; }

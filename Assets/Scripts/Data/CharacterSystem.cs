@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -18,7 +19,7 @@ public class GongfaDef
 /// </summary>
 public static class CharacterSystem
 {
-    static readonly List<GongfaDef> gongfas = new();
+    static readonly List<GongfaDef> gongfas = new List<GongfaDef>();
     static bool inited;
 
     public static IReadOnlyList<GongfaDef> Gongfas => gongfas;

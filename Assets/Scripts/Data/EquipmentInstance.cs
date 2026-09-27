@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>裝備六大槽位。</summary>
