@@ -21,7 +21,7 @@ public class EquipmentDef
 /// </summary>
 public static class EquipmentDatabase
 {
-    static readonly Dictionary<int, EquipmentDef> defs = new();
+    static readonly Dictionary<int, EquipmentDef> defs = new Dictionary<int, EquipmentDef>();
     static bool inited;
 
     public static IReadOnlyDictionary<int, EquipmentDef> All => defs;

@@ -16,7 +16,7 @@ public class EquipmentPanelUI : MonoBehaviour
     public TMP_Text detailText;         // 選中裝備詳情
     public Button btnEnhance, btnReforge, btnUpgradeQ, btnEquipSel, btnDecompose, btnCleanup;
 
-    readonly List<GameObject> cells = new();
+    readonly List<GameObject> cells = new List<GameObject>();
     int selectedIndex = -1;             // 背包索引；-1 = 看已穿戴
 
     void OnEnable()

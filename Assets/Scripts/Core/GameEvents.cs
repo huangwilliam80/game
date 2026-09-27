@@ -44,7 +44,7 @@ public class BattleResult
     public int stageId;
     public int waveReached;
     public float duration;
-    public System.Collections.Generic.List<EquipmentInstance> loot = new();
+    public System.Collections.Generic.List<EquipmentInstance> loot = new System.Collections.Generic.List<EquipmentInstance>();
     public long goldReward;
     public long expReward;
 }

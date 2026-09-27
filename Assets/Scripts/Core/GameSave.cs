@@ -26,7 +26,7 @@ public class SaveData
 
     // ---- 裝備：已穿戴（槽位索引 -> 装备）與背包 ----
     public EquipmentInstance[] equipped = new EquipmentInstance[6];   // 對應 EquipSlot 0..5
-    public System.Collections.Generic.List<EquipmentInstance> bags = new();
+    public System.Collections.Generic.List<EquipmentInstance> bags = new System.Collections.Generic.List<EquipmentInstance>();
 
     // ---- 功法（Roguelite 永久強化），index 對應 GongfaDef.id ----
     public int[] gongfaLevel = new int[8];
@@ -64,7 +64,7 @@ public static class GameSave
             if (loaded.equipped != null) Array.Copy(loaded.equipped, eq, Mathf.Min(loaded.equipped.Length, 6));
             loaded.equipped = eq;
         }
-        if (loaded.bags == null) loaded.bags = new();
+        if (loaded.bags == null) loaded.bags = new System.Collections.Generic.List<EquipmentInstance>();
         if (loaded.gongfaLevel == null || loaded.gongfaLevel.Length < 8)
         {
             var g = new int[8];

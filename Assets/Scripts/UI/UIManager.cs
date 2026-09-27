@@ -19,7 +19,7 @@ public class UIManager : MonoBehaviour
     public TMP_Text toastText;
     public CanvasGroup toastGroup;
 
-    readonly System.Collections.Generic.Dictionary<string, GameObject> dic = new();
+    readonly System.Collections.Generic.Dictionary<string, GameObject> dic = new Dictionary<string, GameObject>();
 
     void Awake()
     {

@@ -14,7 +14,7 @@ public class StagePanelUI : MonoBehaviour
     public TMP_Text resultText;         // 結算區
     public Button backBtn;
 
-    readonly List<GameObject> items = new();
+    readonly List<GameObject> items = new List<GameObject>();
 
     void OnEnable()
     {
