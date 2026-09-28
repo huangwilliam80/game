@@ -49,9 +49,7 @@ public class StagePanelUI : MonoBehaviour
         if (runHint)
             runHint.text = busy
                 ? "歷練進行中…（上半部即為戰鬥畫面）"
-                : $"第 {stage} 夜 · 靈玉秘境
-通關獎勵：{RunController.RewardPreview(stage)}
-特色：每波三選一功法、開局重置";
+                : $"第 {stage} 夜 · 靈玉秘境\n通關獎勵：{RunController.RewardPreview(stage)}\n特色：每波三選一功法、開局重置";
     }
 
     void OnRunClicked()
