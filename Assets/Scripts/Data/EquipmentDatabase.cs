@@ -114,7 +114,7 @@ public static class EquipmentDatabase
         return new EquipmentInstance
         {
             defId = def.id, quality = q, plus = 0, level = lvl,
-            seed = Random.Range(int.MinValue, int.MaxValue),
+            seed = GameMath.RandInt(int.MinValue, int.MaxValue - 1),
             setId = def.setId
         }.Also(e => e.RegenerateAffixes());
     }
@@ -142,7 +142,7 @@ public static class EquipmentDatabase
         result.quality = q;
         result.plus = 0;
         result.level = mats[0].level + 2;
-        result.seed = Random.Range(int.MinValue, int.MaxValue);
+        result.seed = GameMath.RandInt(int.MinValue, int.MaxValue - 1);
         result.RegenerateAffixes();
         return result;
     }

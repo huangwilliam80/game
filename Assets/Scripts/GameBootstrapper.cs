@@ -7,6 +7,12 @@ using UnityEngine.InputSystem.UI;   // Unity 6 預設新輸入系統時才編譯
 #endif
 using UnityEngine.UI;
 
+/// <summary>小工具：Button（Graphic）沒有 rectTransform 屬性，補一個擴充方法方便取用。</summary>
+public static class UiExt
+{
+    public static RectTransform rectTransform(this Button b) => b.GetComponent<RectTransform>();
+}
+
 /// <summary>
 /// 場景自動搭建器（新手友善核心！）：
 /// 掛在空物體上按 Play，它會用程式碼生成整套豎屏 UI（Canvas、頂欄、五個面板、導航列、戰鬥舞臺），
@@ -305,8 +311,8 @@ public class GameBootstrapper : MonoBehaviour
     {
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var t = go.AddComponent<TextMeshProUGUI>();
-        t.fontSize = size; t.color = col; t.alignment = anchor;
-        t.text = name; t.overflowMode = TextOverflowModes.Ellipsis; t.enableWordWrapping = true;
+        t.fontSize = size; t.color = col; t.alignment = (TMPro.TextAlignmentOptions)anchor;
+        t.text = name; t.overflowMode = TextOverflowModes.Ellipsis; t.textWrappingMode = TextWrappingModes.Normal;
         return t;
     }
 
@@ -323,7 +329,8 @@ public class GameBootstrapper : MonoBehaviour
         var b = go.AddComponent<Button>();
         var t = CreateText("T", go.transform, 28, Color.white);
         t.text = label; Stretch(t.rectTransform);
-        go.AddComponent<LayoutElement>().minSize = new Vector2(150, 90);
+        var le = go.AddComponent<LayoutElement>();
+        le.minWidth = 150; le.minHeight = 90;
         return b;
     }
 

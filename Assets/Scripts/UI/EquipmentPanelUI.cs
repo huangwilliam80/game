@@ -29,7 +29,7 @@ public class EquipmentPanelUI : MonoBehaviour
         if (btnUpgradeQ) btnUpgradeQ.onClick.AddListener(() => WithSelected(e => InventorySystem.UpgradeQuality(e)));
         if (btnEquipSel) btnEquipSel.onClick.AddListener(() => { if (selectedIndex >= 0) InventorySystem.Equip(selectedIndex); });
         if (btnDecompose) btnDecompose.onClick.AddListener(() => { if (selectedIndex >= 0) InventorySystem.Decompose(GameSave.Data.bags[selectedIndex]); });
-        if (btnCleanup) btnCleanup.onClick.AddListener(InventorySystem.CleanupTrash);
+        if (btnCleanup) btnCleanup.onClick.AddListener(() => InventorySystem.CleanupTrash());
     }
     void OnDisable() => GameEvents.OnInventoryChanged -= Refresh;
 
@@ -78,7 +78,7 @@ public class EquipmentPanelUI : MonoBehaviour
             {
                 var slotTxt = equipRow.GetChild(s).GetComponentInChildren<TMP_Text>();
                 var e = GameSave.Data.equipped[s];
-                if (slotTxt) slotTxt.text = SlotName((EquipSlot)s) + "\n" + (e ? $"{EquipmentDatabase.Get(e.defId).name} +{e.plus}" : "—");
+                if (slotTxt) slotTxt.text = SlotName((EquipSlot)s) + "\n" + (e != null ? $"{EquipmentDatabase.Get(e.defId).name} +{e.plus}" : "—");
             }
         if (selectedIndex >= bags.Count) selectedIndex = -1;
         ShowDetail();
