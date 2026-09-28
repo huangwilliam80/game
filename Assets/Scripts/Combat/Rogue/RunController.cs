@@ -2,13 +2,27 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// 靈玉秘境（Roguelite 模式）控制器
-/// </summary>
 public class RunController : MonoBehaviour
 {
     public static RunController I { get; private set; }
     public bool IsRunning { get; private set; }
+
+    // ★ 補齊 UI 腳本需要的屬性
+    public bool LastRunWin { get; private set; }
+    public int Stage { get; private set; }
+    public int Wave { get; private set; }
+    public long RunCrystal { get; private set; }
+    public long RunGold { get; private set; }
+    public List<EquipmentInstance> RunLoot { get; private set; } = new List<EquipmentInstance>();
+    public float HeroHp { get; private set; }
+    public float HeroMaxHp { get; private set; }
+    public float EnemyHp { get; private set; }
+    public float EnemyMaxHp { get; private set; }
+    public string EnemyName { get; private set; }
+    public float LastHitTime { get; private set; }
+    public float LastEnemyHit { get; private set; }
+    public int stageId { get; private set; }
+    public int totalWaves { get; private set; }
 
     void Awake() 
     { 
@@ -16,37 +30,62 @@ public class RunController : MonoBehaviour
         I = this; 
     }
 
-    public void StartRun(int stageId)
+    public void StartRun(int stage)
     {
         if (IsRunning) return;
         IsRunning = true;
+        this.stageId = stage;
+        this.totalWaves = 5;
+        this.Stage = stage;
         GameEvents.RaiseRunStart();
-        StartCoroutine(SimulateRun(stageId));
+        StartCoroutine(SimulateRun(stage));
     }
 
-    IEnumerator SimulateRun(int stageId)
+    public void PickBuff(int idx) { /* Dummy */ }
+
+    IEnumerator SimulateRun(int stage)
     {
-        GameEvents.Toast($"進入第 {stageId} 夜 · 靈玉秘境...");
-        // 模擬 Roguelite 戰鬥過程（後續可替換為真實的場景切換或動畫）
-        yield return new WaitForSeconds(2.5f); 
+        GameEvents.Toast($"⚔ 進入第 {stage} 夜 · 靈玉秘境...");
+        yield return new WaitForSeconds(1f); 
 
-        // 結算獎勵
+        long power = CharacterSystem.Power();
+        float monHp = GameMath.MonsterHp(stage, 5) * 0.6f;
+        bool win = power >= monHp;
+
+        for (int w = 1; w <= totalWaves; w++)
+        {
+            Wave = w;
+            GameEvents.RaiseBattleStart(w); 
+            yield return new WaitForSeconds(1.2f);
+            GameEvents.RaiseBattleEnd(win, new BattleResult { stageId = stage, waveReached = w });
+        }
+
         var loot = new List<EquipmentInstance>();
-        for (int i = 0; i < 2; i++) loot.Add(EquipmentDatabase.RollDrop(stageId));
-        
-        long goldReward = 500 * stageId;
-        long crystalReward = 10 * stageId;
+        long goldReward = 0;
+        long crystalReward = 0;
 
-        GameSave.Data.gold += goldReward;
-        GameSave.Data.spiritCrystal += crystalReward;
-        foreach (var item in loot) InventorySystem.AddToBag(item);
+        if (win) {
+            for (int i = 0; i < 2; i++) loot.Add(EquipmentDatabase.RollDrop(stage));
+            goldReward = 500 * stage;
+            crystalReward = 10 * stage;
+            GameSave.Data.gold += goldReward;
+            GameSave.Data.spiritCrystal += crystalReward;
+            foreach (var item in loot) InventorySystem.AddToBag(item);
+            GameEvents.RaiseCurrency(CurrencyType.Gold, GameSave.Data.gold);
+            GameEvents.RaiseCurrency(CurrencyType.SpiritCrystal, GameSave.Data.spiritCrystal);
+            LastRunWin = true;
+            GameEvents.Toast($"✅ 秘境通關！金幣+{goldReward} 靈玉+{crystalReward}");
+        } else {
+            LastRunWin = false;
+            GameEvents.Toast($"❌ 戰力不足，歷練失敗！建議強化裝備。");
+        }
 
-        GameEvents.RaiseCurrency(CurrencyType.Gold, GameSave.Data.gold);
-        GameEvents.RaiseCurrency(CurrencyType.SpiritCrystal, GameSave.Data.spiritCrystal);
-        
+        this.RunGold = goldReward;
+        this.RunCrystal = crystalReward;
+        this.RunLoot = loot;
+
         IsRunning = false;
-        GameEvents.RaiseRunEnd(true, new BattleResult { stageId = stageId, goldReward = goldReward });
-        GameEvents.Toast("秘境通關！戰利品已發放至背包");
+        GameEvents.RaiseRunEnd();
     }
 
     public static string RewardPreview(int stage) => $"預估獲得：{500 * stage} 金幣, {10 * stage} 靈玉";

@@ -67,5 +67,8 @@ public class EquipmentInstance
         return total;
     }
 
+    // ★ 補齊 SellPrice
+    public long SellPrice => (long)(10 * (quality + 1) * (quality + 1) + plus * 5 + level * 2);
+
     public long Power => GameMath.EstimatePower(FinalStats().atk, FinalStats().def, FinalStats().hp, FinalStats().critRate, FinalStats().speed, FinalStats().special);
 }

@@ -14,7 +14,10 @@ public class MainPanelUI : MonoBehaviour
         if (claimBtn) claimBtn.onClick.AddListener(OnClaim);
         if (forgeBtn) forgeBtn.onClick.AddListener(() => UIManager.I.Open("Forge"));
         if (stageBtn) stageBtn.onClick.AddListener(() => UIManager.I.Open("Stages"));
-        if (dungeonBtn) dungeonBtn.onClick.AddListener(() => GameEvents.Toast("秘境系統開發中，請先使用掛機！"));
+        
+        // ★ 修復秘境按鈕點擊事件
+        if (dungeonBtn) dungeonBtn.onClick.AddListener(() => { if (RunController.I != null) RunController.I.StartRun(GameSave.Data.currentStage); else GameEvents.Toast("控制器未就緒"); });
+        
         ShowOfflineGreeting();
         RefreshGoal();
     }

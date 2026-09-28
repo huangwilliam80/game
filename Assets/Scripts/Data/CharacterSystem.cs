@@ -164,8 +164,11 @@ public static class CharacterSystem
         return t;
     }
 
-    public static long Power() => GameMath.EstimatePower(FinalStats());
-
+    public static long Power() 
+    { 
+        var s = FinalStats(); 
+        return GameMath.EstimatePower(s.atk, s.def, s.hp, s.critRate, s.speed, s.special); 
+    }
     /// <summary>聚寶秘術：掛機收益加成係數。</summary>
     public static float IdleBonus() => 1f + GongfaLevel(6) * .04f;
     /// <summary>煉器心法：打造折扣。</summary>

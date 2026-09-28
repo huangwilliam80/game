@@ -65,6 +65,7 @@
     <Compile Include="Assets\Scripts\Combat\Rogue\RogueBuff.cs" />
     <Compile Include="Assets\Scripts\UI\StagePanelUI.cs" />
     <Compile Include="Assets\Scripts\UI\MainPanelUI.cs" />
+    <Compile Include="Assets\Scripts\Data\EquipDisplayUtil.cs" />
     <Compile Include="Assets\Scripts\Core\GameEvents.cs" />
     <Compile Include="Assets\Scripts\Core\GameSave.cs" />
     <Compile Include="Assets\Scripts\Data\CharacterSystem.cs" />

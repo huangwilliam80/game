@@ -23,6 +23,11 @@ public class UIManager : MonoBehaviour
     }
     void OnDestroy() { GameEvents.OnToast -= ShowToast; }
 
+    // ★ 補齊 CloseAll 方法
+    public void CloseAll() {
+        foreach (var kvp in panelDict) kvp.Value.SetActive(false);
+    }
+
     public void Open(string name) {
         foreach (var kvp in panelDict) kvp.Value.SetActive(kvp.Key == name);
     }
