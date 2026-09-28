@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -25,15 +24,20 @@ public class UIManager : MonoBehaviour
     void Awake()
     {
         I = this;
-        // ★★★ 修復：AddComponent 會「立刻」觸發 Awake，
-        // 此時 GameBootstrapper 還沒賦值 panelNames / panels（是 null），
-        // 直接讀取會崩潰並中斷整個 UI 生成（底部導航列因此消失）。
-        // 改成：有值才初始化；沒值則等 GameBootstrapper 賦值後手動呼叫 InitPanels()。★★★
-        if (panelNames == null || panels == null) return;
-        InitPanels();
+        if (panelNames != null && panels != null) InitPanels();
     }
 
-    /// <summary>建立面板字典並預設顯示 Main（由 GameBootstrapper 在賦值後呼叫）。</summary>
+    void OnEnable()
+    {
+        // ★ 修復：訂閱全域 Toast 事件
+        GameEvents.OnToast += ShowToast;
+    }
+
+    void OnDisable()
+    {
+        GameEvents.OnToast -= ShowToast;
+    }
+
     public void InitPanels()
     {
         dic.Clear();
@@ -51,5 +55,36 @@ public class UIManager : MonoBehaviour
     public void CloseAll(string keep = null)
     {
         foreach (var kv in dic) kv.Value.SetActive(kv.Key == keep);
+    }
+
+    // ================= Toast 飄字邏輯 =================
+
+    void ShowToast(string msg)
+    {
+        // 停止舊的動畫，開始新的
+        StopAllCoroutines();
+        StartCoroutine(ToastRoutine(msg));
+    }
+
+    IEnumerator ToastRoutine(string msg)
+    {
+        if (toastText == null || toastGroup == null) yield break;
+
+        // 1. 顯示文字並淡入
+        toastText.text = msg;
+        toastGroup.alpha = 1f;
+
+        // 2. 停留 2 秒讓玩家看清楚
+        yield return new WaitForSeconds(2f);
+
+        // 3. 花 0.5 秒淡出
+        float t = 0;
+        while (t < 1f)
+        {
+            t += Time.deltaTime * 2f; // 2f 代表 0.5秒完成 (1/0.5)
+            toastGroup.alpha = 1f - t;
+            yield return null;
+        }
+        toastGroup.alpha = 0f;
     }
 }
