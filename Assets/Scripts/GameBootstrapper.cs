@@ -10,7 +10,9 @@ using UnityEngine.InputSystem.UI;
 
 public static class UiExt
 {
-    public static RectTransform rt(this Component c) => c.GetComponent<RectTransform>();
+    public static RectTransform rt(this Component c) => (RectTransform)c.transform;
+    // ★ 修復 CS1929：CreatePanel/CreateGrid 回傳的是 GameObject，也需要 .rt()
+    public static RectTransform rt(this GameObject go) => (RectTransform)go.transform;
 }
 
 /// <summary>
@@ -28,6 +30,8 @@ public class GameBootstrapper : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = 60;
+
+        // ★ 統一由 ApplyFont() 指定中文字型；這裡只確保自動 sizing 不會干擾版面
 
         EquipmentDatabase.Init();
         CharacterSystem.Init();
@@ -70,8 +74,9 @@ public class GameBootstrapper : MonoBehaviour
         rootRT = canvasGO.GetComponent<RectTransform>();
         EnsureEventSystem();
 
-        // ---- 背景 ----
-        var bg = CreateImage("BG", rootRT, new Color(.09f, .10f, .16f));
+        // ---- 背景（★ 修復：必須蓋住整屏，否則 GameView 出現大片白底、文字難以辨識）----
+        var bg = CreatePanel("BG", rootRT, new Color(.09f, .10f, .16f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        bg.GetComponent<Image>().sprite = whiteSq;
         Stretch(bg.rt());
 
         // ---- 頂部資源欄 ----
@@ -94,7 +99,7 @@ public class GameBootstrapper : MonoBehaviour
         // ---- 中間容器(TopBar 與 NavBar 之間) ----
         var middle = CreatePanel("Middle", rootRT, new Color(0, 0, 0, 0),
             Vector2.zero, Vector2.one, new Vector2(0, 170f), new Vector2(0, -140f));
-        Stretch(middle.rt());
+        // ★ 注意：這裡不能 Stretch()，否則會把上面 170/-140 的邊距清零，TopBar/NavBar 與面板重疊
 
         // ==== 上半部:WorldView(永遠顯示的戰鬥演出) ====
         var worldViewGO = CreatePanel("WorldView", middle.transform, new Color(0.05f, 0.08f, 0.12f),
@@ -170,7 +175,7 @@ public class GameBootstrapper : MonoBehaviour
         // buff 標籤列
         var buffLbl = new GameObject("BuffLbl"); buffLbl.transform.SetParent(worldViewGO.transform, false);
         var bl = buffLbl.AddComponent<TextMeshProUGUI>();
-        bl.fontSize = 22; bl.color = new Color(1f, 0.9f, 0.4f); bl.alignment = TextAlignmentOptions.LowerLeft;
+        bl.fontSize = 22; bl.color = new Color(1f, 0.9f, 0.4f); bl.alignment = TextAlignmentOptions.BottomLeft;
         var blRT = buffLbl.AddComponent<RectTransform>();
         blRT.anchorMin = new Vector2(0.05f, 0.02f); blRT.anchorMax = new Vector2(0.95f, 0.08f);
         blRT.offsetMin = blRT.offsetMax = Vector2.zero;
@@ -403,26 +408,25 @@ public class GameBootstrapper : MonoBehaviour
     void ApplyFont()
     {
         var cjk = CJKFont;
-        var latin = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        if (cjk == null) return;                    // 已在外層印過警告
+        TMPro.TMP_Settings.defaultFontAsset = cjk;  // ★ 之後新建立的 TMP 也自動用中文字型
         var all = canvas.GetComponentsInChildren<TextMeshProUGUI>(true);
         foreach (var t in all)
         {
-            if (cjk != null) t.font = cjk;
-            else if (latin != null) t.font = latin;
+            t.font = cjk;
             t.enableAutoSizing = false;
+            if (!t.enabled) t.enabled = true;      // 只還原原本就該顯示的文字，不誤開隱藏模板
         }
-        if (cjk == null)
-            Debug.LogWarning("[GameBootstrapper] 找不到中文 TMP 字型，中文可能顯示為方框。\n" +
-                "解決：Window→TextMeshPro→Font Asset Creator，用 Assets/Fonts/SourceHanSansCN-Regular.otf " +
-                "產生 SDF 字型存到 Assets/Resources/Fonts/SourceHanSansCN-Regular SDF.asset；" +
-                "或直接指定 Assets/Fonts/ 底下的 .otf（見 LoadCJKFont 的 fallback）。");
+        // 動態生成的傷害數字預製体也要換字型（它在 pool 內）
+        if (WorldView.I != null) WorldView.I.ApplyFontToPool(cjk);
     }
 
     /// <summary>
-    /// 中文字型搜尋順序：
-    /// 1) Resources/Fonts/*SDF*（自己生成的 TMP 字型资产，效果最好）
-    /// 2) ProjectSettings 裡 TMP 預設字型（若已改成思源黑體 SDF）
-    /// 3) 直接吃 Assets/Fonts/*.otf（TMP 可即時轉成動態字型资产，能顯示中文但字級較大）
+    /// 中文字型搜尋順序（任何一步失敗都自動退下一步，絕不會拋例外）：
+    /// 1) Resources/Fonts/SourceHanSansCN-Regular SDF（自己生成的 TMP 字型资产，效果最好）
+    /// 2) Assets/Fonts/*.otf → 用 TMP 內建 CreateFontAsset 在執行期產生「動態 SDF 字型」
+    ///    （免開 Font Asset Creator；編輯器與真機都能跑，因為是走 Runtime API）
+    /// 3) TMP 內建 LiberationSans SDF（至少英文/數字正常，並在 Console 提示）
     /// </summary>
     static TMP_FontAsset CJKFont
     {
@@ -430,30 +434,74 @@ public class GameBootstrapper : MonoBehaviour
         {
             if (cjkFont != null || cjkTried) return cjkFont;
             cjkTried = true;
-            cjkFont = Resources.Load<TMP_FontAsset>("Fonts/SourceHanSansCN-Regular SDF")
-                   ?? FirstInFolder("Fonts", "SDF");
-            if (cjkFont == null)
+
+            // 1) 先驗「資產名稱 == 檔案名稱」，不符就跳過（避免 Unity 的命名衝突警告與方框字）
+            var named = SafeLoad<TMP_FontAsset>("Fonts/SourceHanSansCN-Regular SDF");
+            if (IsValid(named) && named.name == "SourceHanSansCN-Regular SDF")
             {
-                // 免生成步驟：直接把 otf/ttf 丟進 Resources/Fonts/ 也能用
-                cjkFont = FirstInFolder("Fonts", null);
+                cjkFont = named;
+                Debug.Log("[CJK] 使用已生成的 TMP 字型：Resources/Fonts/SourceHanSansCN-Regular SDF");
+                return cjkFont;
             }
+            cjkFont = null;
+
+            // ★ 免手動生成步驟：直接把專案內的 .otf/.ttf 轉成「動態 SDF 字型资产」
+            foreach (var name in new[] { "SourceHanSansCN-Regular", "SourceHanSansCN-Normal",
+                                          "SourceHanSansCN-Medium", "SourceHanSansCN-Bold",
+                                          "SourceHanSansCN-Light", "SourceHanSansCN-Heavy" })
+            {
+                var src = FindFontByName(name);
+                if (src == null) continue;
+                try
+                {
+                    var f = TMP_FontAsset.CreateFontAsset(src, 90, 9,
+                        UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 1024, 1024,
+                        AtlasPopulationMode.Dynamic, true);
+                    if (IsValid(f))
+                    {
+                        cjkFont = f;
+                        Debug.Log($"[CJK] 已用 {name}.otf 產生動態字型（無需 Font Asset Creator）。");
+                        return cjkFont;
+                    }
+                }
+                catch (Exception e) { Debug.LogWarning("[CJK] " + name + " 失敗：" + e.Message); }
+            }
+
+            // 最後：TMP 內建西文字型，至少畫面不會壞
+            cjkFont = SafeLoad<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+            if (!IsValid(cjkFont)) cjkFont = null;
+            if (cjkFont == null)
+                Debug.LogWarning("[GameBootstrapper] 找不到可用的中文字型。\n" +
+                    "請用 Window→TextMeshPro→Font Asset Creator，來源選 Assets/Fonts/SourceHanSansCN-Regular.otf，" +
+                    "存檔到 Assets/Resources/Fonts/SourceHanSansCN-Regular SDF.asset（資產名稱需與檔名一致）。");
             return cjkFont;
         }
     }
     static TMP_FontAsset cjkFont;
     static bool cjkTried;
 
-    static TMP_FontAsset FirstInFolder(string folder, string mustContain)
+    /// <summary>
+    /// 從 Resources/Fonts/ 抓原始 .otf/.ttf（這些檔已由工具複製到 Resources 底下）。
+    /// 刻意不使用 UnityEditor.AssetDatabase —— 它不存在於真機/打包版本。
+    /// </summary>
+    static Font FindFontByName(string name) => SafeLoad<Font>("Fonts/" + name);
+
+    /// <summary>Resources.Load 但過濾掉「損壞/名稱不符」的资产（Unity 會回傳非 null 但已丟棄的物件）。</summary>
+    static T SafeLoad<T>(string path) where T : UnityEngine.Object
     {
-        var assets = Resources.LoadAll<TMP_FontAsset>(folder);
-        if (assets == null || assets.Length == 0) return null;
-        foreach (var a in assets)
+        try
         {
-            if (a == null) continue;
-            if (mustContain == null || a.name.IndexOf(mustContain, StringComparison.OrdinalIgnoreCase) >= 0)
-                return a;
+            var o = Resources.Load<T>(path);
+            return IsValid(o) ? o : null;
         }
-        return assets[0];
+        catch (Exception e) { Debug.LogWarning("[SafeLoad] " + path + " → " + e.Message); return null; }
+    }
+
+    static bool IsValid(UnityEngine.Object o)
+    {
+        if (o == null) return false;                 // 已被刪除
+        try { _ = o.name; return !string.IsNullOrEmpty(o.name); } // 名稱與檔案不符時 Unity 會在此報錯
+        catch { return false; }
     }
 
     // ================= 小工具 =================
@@ -534,16 +582,20 @@ public class GameBootstrapper : MonoBehaviour
     {
         var sv = CreatePanel(name, parent, new Color(.08f, .08f, .12f, .6f), aMin, aMax, Vector2.zero, Vector2.zero);
         var scroll = sv.AddComponent<ScrollRect>();
-        var vp = sv;
-        var c = new GameObject("Content"); c.transform.SetParent(sv.transform, false);
+        // ★ 修復：viewport 必須是「獨立且帶遮罩」的節點，否則整塊背景會被裁掉、列表也無法捲動
+        var vpGO = CreatePanel("Viewport", sv.transform, new Color(0, 0, 0, 0), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        vpGO.AddComponent<RectMask2D>();
+        var c = new GameObject("Content"); c.transform.SetParent(vpGO.transform, false);
         contentRT = c.GetComponent<RectTransform>();
         contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
         contentRT.pivot = new Vector2(.5f, 1); contentRT.sizeDelta = new Vector2(0, 120);
         var vlg = c.AddComponent<VerticalLayoutGroup>();
         vlg.spacing = 8; vlg.childForceExpandWidth = true; vlg.childControlHeight = false;
         c.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        scroll.content = contentRT; scroll.viewport = vp.GetComponent<RectTransform>();
+        scroll.content = contentRT; scroll.viewport = (RectTransform)vpGO.transform;
         scroll.horizontal = false;
+        scroll.movementType = ScrollRect.MovementType.Elastic;
+        scroll.scrollSensitivity = 40;
         return sv;
     }
 

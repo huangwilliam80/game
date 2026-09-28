@@ -25,6 +25,7 @@ public class WorldView : MonoBehaviour
     public Transform buffLabel;            // 底部 buff 標籤(放一個 TMP 即可)
     public GameObject dmgNumberPrefab;     // 傷害數字模板(TMP,隱藏)
     public GameObject enemyPrefab;         // 敵人圖示模板(隱藏)
+    public TMP_Text waveBanner;            // ★ 波次橫幅（第 X 波 / BOSS）
 
     readonly List<GameObject> dmgPool = new List<GameObject>();
     readonly List<float> dmgTimers = new List<float>();
@@ -39,7 +40,9 @@ public class WorldView : MonoBehaviour
         GameEvents.OnRunStart += OnRunStart;
         GameEvents.OnRunEnd += OnRunEnd;
         GameEvents.OnWaveCleared += OnWaveCleared;
+        GameEvents.OnStageChanged += ShowIdleStage;
         BuildPools();
+        ShowIdleStage();
     }
 
     void OnDisable()
@@ -47,6 +50,16 @@ public class WorldView : MonoBehaviour
         GameEvents.OnRunStart -= OnRunStart;
         GameEvents.OnRunEnd -= OnRunEnd;
         GameEvents.OnWaveCleared -= OnWaveCleared;
+        GameEvents.OnStageChanged -= ShowIdleStage;
+    }
+
+    /// <summary>沒有 run 時，上半部顯示「掛機中：第 X 夜」，讓畫面永遠有語意。</summary>
+    void ShowIdleStage()
+    {
+        if (waveBanner == null) return;
+        if (RunController.I != null && RunController.I.IsRunning) return;
+        int st = Mathf.Max(1, GameSave.Data.currentStage);
+        waveBanner.text = $"🏮 掛機歷練中 · 第 {st} 夜";
     }
 
     void BuildPools()
@@ -69,6 +82,7 @@ public class WorldView : MonoBehaviour
     // ---- Run 事件 ----
     void OnRunStart()
     {
+        if (waveBanner != null) waveBanner.text = "⚔ 靈玉秘境 · 準備戰鬥…";
         var h = CharacterSystem.FinalStats();
         heroMaxHp = Mathf.Max(1f, h.hp);
         SetHeroHp(heroMaxHp);
@@ -83,6 +97,7 @@ public class WorldView : MonoBehaviour
     {
         // 清空畫面(可在此播結束動畫)
         SetEnemyHp(0);
+        ShowIdleStage();
     }
 
     void OnWaveCleared(int nextWave)
@@ -95,6 +110,8 @@ public class WorldView : MonoBehaviour
         enemyMaxHp = Mathf.Max(1f, eHp);
         SetEnemyHp(eHp);
         if (enemyNameText != null) enemyNameText.text = boss ? "鬼王" : $"怨鬼 Lv.{nextWave}";
+        if (waveBanner != null)
+            waveBanner.text = boss ? $"💀 BOSS · 第 {nextWave}/{totalWaves} 波" : $"第 {nextWave}/{totalWaves} 波";
     }
 
     // ---- 供 RunController.Tick 呼叫 ----
@@ -168,6 +185,22 @@ public class WorldView : MonoBehaviour
         for (int i = 0; i < buffs.Count; i++)
             s += $"[{buffs[i].name}] ";
         t.text = s;
+    }
+
+    /// <summary>由 GameBootstrapper 呼叫：把池裡的傷害數字也換成中文字型（若有中文訊息）。</summary>
+    public void ApplyFontToPool(TMPro.TMP_FontAsset font)
+    {
+        if (font == null) return;
+        foreach (var go in dmgPool)
+        {
+            var t = go != null ? go.GetComponent<TextMeshProUGUI>() : null;
+            if (t != null) t.font = font;
+        }
+        if (dmgNumberPrefab != null)
+        {
+            var tp = dmgNumberPrefab.GetComponent<TextMeshProUGUI>();
+            if (tp != null) tp.font = font;
+        }
     }
 
     void Update()
