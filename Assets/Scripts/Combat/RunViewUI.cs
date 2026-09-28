@@ -1,0 +1,122 @@
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class RunViewUI : MonoBehaviour
+{
+    public Image heroFill, enemyFill;
+    public TMP_Text heroLabel, enemyLabel, waveLabel;
+    public RectTransform floatRoot;
+    public GameObject choicePanel;
+    public Button[] choiceButtons = new Button[3];
+    public TMP_Text[] choiceTexts = new TMP_Text[3];
+    public GameObject resultPanel;
+    public TMP_Text resultText;
+    public Button resultCloseBtn;
+
+    readonly List<TMP_Text> floatPool = new List<TMP_Text>();
+    readonly List<float> floatAge = new List<float>();
+    float lastHitTime = -1f;
+
+    void OnEnable()
+    {
+        GameEvents.OnRunStart += () => { Hide(choicePanel); Hide(resultPanel); lastHitTime = -1f; };
+        GameEvents.OnRunEnd += OnEnd;
+        GameEvents.OnRunChoice += OnChoice;
+        GameEvents.OnRunWave += (c, t) => { if (waveLabel) waveLabel.text = $"波次 {c}/{t}"; };
+        for (int i = 0; i < 3; i++)
+        {
+            int idx = i;
+            if (choiceButtons[i]) choiceButtons[i].onClick.AddListener(() => { Hide(choicePanel); if (RunController.I) RunController.I.PickBuff(idx); });
+        }
+        if (resultCloseBtn) resultCloseBtn.onClick.AddListener(() => Hide(resultPanel));
+        BuildFloatPool(); Hide(choicePanel); Hide(resultPanel);
+    }
+    void OnDisable()
+    {
+        GameEvents.OnRunEnd -= OnEnd;
+        GameEvents.OnRunChoice -= OnChoice;
+    }
+    static void Hide(GameObject g) { if (g) g.SetActive(false); }
+
+    void BuildFloatPool()
+    {
+        if (floatRoot == null || floatPool.Count > 0) return;
+        for (int i = 0; i < 8; i++)
+        {
+            var go = new GameObject("Dmg" + i, typeof(RectTransform));
+            go.transform.SetParent(floatRoot, false);
+            var t = go.AddComponent<TextMeshProUGUI>();
+            t.fontSize = 44; t.alignment = TextAlignmentOptions.Center;
+            go.SetActive(false);
+            floatPool.Add(t); floatAge.Add(0f);
+        }
+    }
+
+    void OnChoice(RunBuffChoice c)
+    {
+        if (!choicePanel) return;
+        for (int i = 0; i < 3; i++)
+        {
+            choiceTexts[i].text = $"{c.options[i].name}\n{c.options[i].desc}";
+            choiceButtons[i].gameObject.SetActive(true);
+        }
+        choicePanel.SetActive(true);
+    }
+
+    void OnEnd()
+    {
+        Hide(choicePanel);
+        var rc = RunController.I;
+        if (!resultPanel || !rc) return;
+        resultText.text = rc.LastRunWin
+            ? $"<color=#7CFC9E>秘境通關！</color>第 {rc.Stage} 夜\n靈玉 +{rc.RunCrystal}・金幣 +{TopBarUI.Num(rc.RunGold)}\n戰利品 {rc.RunLoot.Count + 1} 件已入背包"
+            : $"<color=#FF8A8A>歷練失敗…</color>撐到第 {rc.Wave} 波\n安慰獎 靈玉 +{rc.RunCrystal}";
+        resultPanel.SetActive(true);
+    }
+
+    void Update()
+    {
+        var rc = RunController.I;
+        bool run = rc != null && rc.IsRunning;
+        if (heroFill) heroFill.gameObject.SetActive(run);
+        if (enemyFill) enemyFill.gameObject.SetActive(run);
+        if (!run) return;
+
+        heroFill.fillAmount = Mathf.Clamp01(rc.HeroHp / Mathf.Max(1f, rc.HeroMaxHp));
+        enemyFill.fillAmount = Mathf.Clamp01(rc.EnemyHp / Mathf.Max(1f, rc.EnemyMaxHp));
+        if (heroLabel) heroLabel.text = $"我方 {(int)Mathf.Max(0f, rc.HeroHp)}/{(int)rc.HeroMaxHp}";
+        if (enemyLabel) enemyLabel.text = $"{rc.EnemyName} {(int)Mathf.Max(0f, rc.EnemyHp)}/{(int)rc.EnemyMaxHp}";
+
+        if (rc.LastHitTime != lastHitTime)
+        {
+            lastHitTime = rc.LastHitTime;
+            SpawnFloat((int)rc.LastEnemyHit, new Color(1f, .9f, .3f));
+        }
+        for (int i = 0; i < floatPool.Count; i++)
+        {
+            if (!floatPool[i].gameObject.activeSelf) continue;
+            floatAge[i] += Time.deltaTime;
+            floatPool[i].rectTransform.anchoredPosition += new Vector2(0f, 140f * Time.deltaTime);
+            var c = floatPool[i].color; c.a = 1f - floatAge[i]; floatPool[i].color = c;
+            if (floatAge[i] >= 1f) floatPool[i].gameObject.SetActive(false);
+        }
+    }
+
+    void SpawnFloat(int v, Color col)
+    {
+        for (int i = 0; i < floatPool.Count; i++)
+        {
+            if (floatPool[i].gameObject.activeSelf) continue;
+            floatPool[i].gameObject.SetActive(true);
+            floatPool[i].text = v.ToString();
+            floatPool[i].color = col;
+            floatAge[i] = 0f;
+            var rt = floatPool[i].rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(Random.Range(.3f, .7f), Random.Range(.45f, .8f));
+            rt.anchoredPosition = Vector2.zero;
+            return;
+        }
+    }
+}
