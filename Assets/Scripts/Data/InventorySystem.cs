@@ -170,7 +170,7 @@ public static class InventorySystem
 
         foreach (var m in mats) Decompose(m);   // 墊材轉碎片後再回收一部分
         target.quality++;
-        D.forgeShard = Mathf.Max(0, D.forgeShard - need * 2);
+        D.forgeShard = Math.Max(0L, D.forgeShard - need * 2L);
         target.RegenerateAffixes();
         GameEvents.RaiseInventory();
         GameEvents.RaiseHero();
@@ -184,7 +184,7 @@ public static class InventorySystem
         int cost = GameMath.ReforgeCost(e.quality);
         if (D.spiritCrystal < cost) { GameEvents.Toast("靈玉不足"); return false; }
         D.spiritCrystal -= cost;
-        e.seed = Random.Range(int.MinValue, int.MaxValue);
+        e.seed = GameMath.RandInt(int.MinValue, int.MaxValue - 1);
         e.RegenerateAffixes();
         GameEvents.RaiseCurrency(CurrencyType.SpiritCrystal, D.spiritCrystal);
         GameEvents.RaiseInventory();
