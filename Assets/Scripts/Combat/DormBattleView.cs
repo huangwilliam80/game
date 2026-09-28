@@ -23,11 +23,16 @@ public class DormBattleView : MonoBehaviour
     void Awake() { I = this; }
 
     void OnEnable()
-    {
-        GameEvents.OnBattleStart += OnWave;
+{
+    GameEvents.OnBattleStart += OnWave;
+
+    // ★ 修復：引用還沒賦值時不要執行
+    if (ghostPrefab != null && stageArea != null)
         BuildPool();
+
+    if (bedSlots != null)
         RefreshBeds();
-    }
+}
     void OnDisable() { GameEvents.OnBattleStart -= OnWave; }
 
     void BuildPool()
@@ -43,11 +48,14 @@ public class DormBattleView : MonoBehaviour
     }
 
     void RefreshBeds()
-    {
-        int beds = Mathf.Clamp(GameSave.Data.bedCount, 1, bedSlots.Count);
-        for (int i = 0; i < bedSlots.Count; i++)
-            if (bedSlots[i]) bedSlots[i].gameObject.SetActive(i < beds);
-    }
+{
+    // ★ 修復：加空值檢查
+    if (bedSlots == null || bedSlots.Count == 0) return;
+
+    int beds = Mathf.Clamp(GameSave.Data.bedCount, 1, bedSlots.Count);
+    for (int i = 0; i < bedSlots.Count; i++)
+        if (bedSlots[i]) bedSlots[i].gameObject.SetActive(i < beds);
+}
 
     /// <summary>每完成一波，播放一小段「鬼來→被殲滅」的視覺節拍。</summary>
     void OnWave(int waveNum)
