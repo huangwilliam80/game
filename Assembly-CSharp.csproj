@@ -63,7 +63,6 @@
     <Compile Include="Assets\Scripts\UI\CharacterPanelUI.cs" />
     <Compile Include="Assets\Scripts\Combat\Rogue\RunController.cs" />
     <Compile Include="Assets\Scripts\Combat\Rogue\RogueBuff.cs" />
-    <Compile Include="Assets\Scripts\Combat\AssetsBattleResult.cs" />
     <Compile Include="Assets\Scripts\UI\StagePanelUI.cs" />
     <Compile Include="Assets\Scripts\UI\MainPanelUI.cs" />
     <Compile Include="Assets\Scripts\Core\GameEvents.cs" />
@@ -74,6 +73,7 @@
     <Compile Include="Assets\Scripts\Idle\IdleSystem.cs" />
     <Compile Include="Assets\Scripts\Combat\BattleSimulator.cs" />
     <Compile Include="Assets\Scripts\UI\ForgePanelUI.cs" />
+    <Compile Include="Assets\Scripts\UI\EquipDisplayUtil.cs" />
     <Compile Include="Assets\Scripts\UI\TopBarUI.cs" />
     <Compile Include="Assets\Scripts\UI\UIManager.cs" />
     <Compile Include="Assets\Scripts\Combat\BattleResult.cs" />
