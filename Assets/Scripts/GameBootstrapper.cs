@@ -10,9 +10,11 @@ using UnityEngine.InputSystem.UI;
 
 public static class UiExt
 {
-    public static RectTransform rt(this Component c) => (RectTransform)c.transform;
+    public static RectTransform rt(this Component c)
+        => c == null ? null : c.transform as RectTransform;   // ★ 用 as 而非強制轉換，壞了也只是 null（下游已防呆）
     // ★ 修復 CS1929：CreatePanel/CreateGrid 回傳的是 GameObject，也需要 .rt()
-    public static RectTransform rt(this GameObject go) => (RectTransform)go.transform;
+    public static RectTransform rt(this GameObject go)
+        => go == null ? null : go.transform as RectTransform;
 }
 
 /// <summary>
@@ -43,24 +45,36 @@ public class GameBootstrapper : MonoBehaviour
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = 60;
 
-        // ★ 統一由 ApplyFont() 指定中文字型；這裡只確保自動 sizing 不會干擾版面
+        // ★★ 順序至關重要：一定要在「建立任何 TMP 元件」之前決定字型。
+        //    TMP 的預設 LiberationSans SDF 沒有中文字形，若先建中文文字、後換字型，
+        //    TMP 内部會殘留損毀的字符資訊 → 之後讀取 RectTransform / 佈局時就可能拋 NullReferenceException。
+        if (!TMPReady())
+            Debug.LogError("[Boot] TextMeshPro 尚未匯入核心資源！請選單 Window → TextMeshPro → Import TMP Essential Resources，" +
+                           "否則所有文字都不會顯示（遊戲邏輯仍會正常跑）。");
+        ApplyFontEarly();
 
         // ---- 系統層先就緒（全部 Init 完成後才碰 UI，避免任何「靜態單體尚未建立」的空參考）----
         try
         {
-            EquipmentDatabase.Init();
-            CharacterSystem.Init();
-            GameSave.Load();
+            Log("EquipmentDatabase.Init");   EquipmentDatabase.Init();
+            Log("CharacterSystem.Init");     CharacterSystem.Init();
+            Log("GameSave.Load");            GameSave.Load();
+            Log("RegenerateAffixes");
             foreach (var e in GameSave.Data.bags) e.RegenerateAffixes();
             foreach (var e in GameSave.Data.equipped) if (e != null) e.RegenerateAffixes();
 
+            Log("IdleSystem");
             var idleGO = new GameObject("IdleSystem"); idleGO.transform.SetParent(transform, false);
             idleGO.AddComponent<IdleSystem>();          // Awake 同步執行 → IdleSystem.I 可用
+            Log("RunController");
             var runGO = new GameObject("RunController"); runGO.transform.SetParent(transform, false);
             runGO.AddComponent<RunController>();        // Awake 同步執行 → RunController.I 可用
 
+            Log("SettleOffline");
             var (sec, g, e2) = GameSave.SettleOffline();
+            Log("BuildUI");
             BuildUI();                                  // 內部另有 try/catch + 逐步防呆
+            Log("啟動完成 ✔");
 
             if (sec > 60) Debug.Log($"離線 {IdleSystem.Fmt(sec)}，已入帳 金幣+{g:N0} 經驗+{e2:N0}");
         }
@@ -74,6 +88,16 @@ public class GameBootstrapper : MonoBehaviour
     /// <summary>最後手段：用 Unity 內建 IMGUI 顯示錯誤（不依賴 TMP／畫布），讓你看得到問題。</summary>
     void ShowFatalError(string msg) { fatal = msg; }
     string fatal;
+
+    /// <summary>TMP 是否已匯入內建資源（沒匯入時 defaultFontAsset 為 null，文字全消失）。</summary>
+    static bool TMPReady()
+    {
+        try { return TMPro.TMP_Settings.defaultFontAsset != null || SafeLoad<TMPro.TMP_FontAsset>("Fonts & Materials/LiberationSans SDF") != null; }
+        catch { return false; }
+    }
+
+    /// <summary>啟動階段印出「做到哪一步」；若再報錯，Console 最後一行就是罪魁禍首。</summary>
+    static void Log(string step) => Debug.Log("[Boot] " + step);
     void OnGUI()
     {
         if (string.IsNullOrEmpty(fatal)) return;
@@ -111,31 +135,34 @@ public class GameBootstrapper : MonoBehaviour
 
         // ---- 背景（★ 修復：必須蓋住整屏，否則 GameView 出現大片白底、文字難以辨識）----
         var bg = CreatePanel("BG", rootRT, new Color(.09f, .10f, .16f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        bg.GetComponent<Image>().sprite = whiteSq;
+        if (bg != null) bg.GetComponent<Image>().sprite = whiteSq;
         Stretch(bg.rt());
 
         // ---- 頂部資源欄 ----
         var topBarGO = CreatePanel("TopBar", rootRT, new Color(.14f, .15f, .22f),
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -140f), new Vector2(0, 0));
         var top = topBarGO.AddComponent<TopBarUI>();
-        top.levelPower = CreateText("LvPow", topBarGO.transform, 34, Color.white, TextAnchor.MiddleLeft);
-        SetRect(top.levelPower.rt(), new Vector2(0, 1), new Vector2(.5f, 1), new Vector2(20, -70), Vector2.zero);
-        top.gold = CreateText("Gold", topBarGO.transform, 30, new Color(1f, .85f, .3f), TextAnchor.MiddleRight);
-        SetRect(top.gold.rt(), new Vector2(.5f, 1), new Vector2(.75f, 1), new Vector2(-10, -70), Vector2.zero);
-        top.crystal = CreateText("Crystal", topBarGO.transform, 30, new Color(.5f, .8f, 1f), TextAnchor.MiddleRight);
-        SetRect(top.crystal.rt(), new Vector2(.75f, 1), new Vector2(.9f, 1), new Vector2(-10, -70), Vector2.zero);
-        top.shard = CreateText("Shard", topBarGO.transform, 30, new Color(.7f, .9f, .6f), TextAnchor.MiddleRight);
-        SetRect(top.shard.rt(), new Vector2(.9f, 1), new Vector2(1, 1), new Vector2(-20, -70), Vector2.zero);
-        top.income = CreateText("Income", topBarGO.transform, 26, new Color(.6f, 1f, .6f), TextAnchor.MiddleLeft);
-        SetRect(top.income.rt(), new Vector2(0, 0), new Vector2(.5f, 1), new Vector2(20, 0), Vector2.zero);
-        top.stageLabel = CreateText("Stage", topBarGO.transform, 26, new Color(.9f, .9f, .9f), TextAnchor.MiddleRight);
-        SetRect(top.stageLabel.rt(), new Vector2(.5f, 0), new Vector2(1, 1), new Vector2(-20, 0), Vector2.zero);
+        // ★ 統一用 Place(...)：CreateText 萬一回傳 null（TMP 沒字型時）也不會連鎖拋 NRE
+        top.levelPower = Place(CreateText("LvPow", topBarGO.transform, 34, Color.white, TextAnchor.MiddleLeft),
+            new Vector2(0, 1), new Vector2(.5f, 1), new Vector2(20, -70), Vector2.zero);
+        top.gold = Place(CreateText("Gold", topBarGO.transform, 30, new Color(1f, .85f, .3f), TextAnchor.MiddleRight),
+            new Vector2(.5f, 1), new Vector2(.75f, 1), new Vector2(-10, -70), Vector2.zero);
+        top.crystal = Place(CreateText("Crystal", topBarGO.transform, 30, new Color(.5f, .8f, 1f), TextAnchor.MiddleRight),
+            new Vector2(.75f, 1), new Vector2(.9f, 1), new Vector2(-10, -70), Vector2.zero);
+        top.shard = Place(CreateText("Shard", topBarGO.transform, 30, new Color(.7f, .9f, .6f), TextAnchor.MiddleRight),
+            new Vector2(.9f, 1), new Vector2(1, 1), new Vector2(-20, -70), Vector2.zero);
+        top.income = Place(CreateText("Income", topBarGO.transform, 26, new Color(.6f, 1f, .6f), TextAnchor.MiddleLeft),
+            new Vector2(0, 0), new Vector2(.5f, 1), new Vector2(20, 0), Vector2.zero);
+        top.stageLabel = Place(CreateText("Stage", topBarGO.transform, 26, new Color(.9f, .9f, .9f), TextAnchor.MiddleRight),
+            new Vector2(.5f, 0), new Vector2(1, 1), new Vector2(-20, 0), Vector2.zero);
 
         // ---- 中間容器(TopBar 與 NavBar 之間) ----
         var middle = CreatePanel("Middle", rootRT, new Color(0, 0, 0, 0),
             Vector2.zero, Vector2.one, new Vector2(0, 170f), new Vector2(0, -140f));
         // ★ 注意：這裡不能 Stretch()，否則會把上面 170/-140 的邊距清零，TopBar/NavBar 與面板重疊
 
+        Step("上半部:WorldView", () =>
+        {
         // ==== 上半部:WorldView(永遠顯示的戰鬥演出) ====
         var worldViewGO = CreatePanel("WorldView", middle.transform, new Color(0.05f, 0.08f, 0.12f),
             new Vector2(0, 0.45f), Vector2.one, Vector2.zero, Vector2.zero);
@@ -147,45 +174,40 @@ public class GameBootstrapper : MonoBehaviour
 
         // 主角
         var heroImg = CreateImage("Hero", worldViewGO.transform, new Color(0.3f, 0.7f, 1f));
-        heroImg.rt().anchorMin = heroImg.rt().anchorMax = new Vector2(0.25f, 0.52f);
-        heroImg.rt().sizeDelta = new Vector2(170, 230);
+        SetCenter(heroImg.rt(), new Vector2(0.25f, 0.52f), new Vector2(170, 230));
         wv.heroImage = heroImg;
 
         // 主角血條
         var heroBarBg = CreateImage("HeroHpBarBg", worldViewGO.transform, new Color(0.2f, 0.2f, 0.2f));
-        heroBarBg.rt().anchorMin = heroBarBg.rt().anchorMax = new Vector2(0.25f, 0.16f);
-        heroBarBg.rt().sizeDelta = new Vector2(180, 18);
+        SetCenter(heroBarBg.rt(), new Vector2(0.25f, 0.16f), new Vector2(180, 18));
         var heroFill = CreateImage("HeroHpFill", heroBarBg.transform, new Color(0.2f, 0.9f, 0.3f));
-        var hf = heroFill.GetComponent<Image>();
-        hf.type = Image.Type.Filled; hf.fillMethod = Image.FillMethod.Horizontal; hf.fillAmount = 1f;
-        Stretch(heroFill.rt());
+        var hf = heroFill != null ? heroFill.GetComponent<Image>() : null;
+        if (hf) { hf.type = Image.Type.Filled; hf.fillMethod = Image.FillMethod.Horizontal; hf.fillAmount = 1f; }
+        if (heroFill != null) Stretch(heroFill.rt());
         wv.heroHpFill = hf;
         wv.heroHpText = CreateText("HeroHpTxt", heroBarBg.transform, 20, Color.white, TextAnchor.MiddleCenter);
-        Stretch(wv.heroHpText.rt());
+        if (wv.heroHpText != null) Stretch(wv.heroHpText.rt());
 
         // 敵人錨點 + 模板
         var enemyAnchor = CreatePanel("EnemyAnchor", worldViewGO.transform, new Color(0, 0, 0, 0),
             new Vector2(0.62f, 0.35f), new Vector2(0.9f, 0.8f), Vector2.zero, Vector2.zero);
         wv.enemyAnchor = enemyAnchor.rt();
         var enemyTpl = CreateImage("EnemyTpl", enemyAnchor.transform, new Color(0.9f, 0.3f, 0.3f));
-        enemyTpl.rt().sizeDelta = new Vector2(160, 200);
-        enemyTpl.gameObject.SetActive(false);
-        wv.enemyPrefab = enemyTpl.gameObject;
+        if (enemyTpl != null) enemyTpl.rt().sizeDelta = new Vector2(160, 200);
+        if (enemyTpl != null) { enemyTpl.gameObject.SetActive(false); wv.enemyPrefab = enemyTpl.gameObject; }
 
         // 敵人血條 + 名稱
         var eBarBg = CreateImage("EnemyHpBarBg", worldViewGO.transform, new Color(0.2f, 0.2f, 0.2f));
-        eBarBg.rt().anchorMin = eBarBg.rt().anchorMax = new Vector2(0.76f, 0.16f);
-        eBarBg.rt().sizeDelta = new Vector2(180, 18);
+        SetCenter(eBarBg.rt(), new Vector2(0.76f, 0.16f), new Vector2(180, 18));
         var eFill = CreateImage("EnemyHpFill", eBarBg.transform, new Color(0.9f, 0.3f, 0.3f));
-        var ef = eFill.GetComponent<Image>();
-        ef.type = Image.Type.Filled; ef.fillMethod = Image.FillMethod.Horizontal; ef.fillAmount = 1f;
-        Stretch(eFill.rt());
+        var ef = eFill != null ? eFill.GetComponent<Image>() : null;
+        if (ef) { ef.type = Image.Type.Filled; ef.fillMethod = Image.FillMethod.Horizontal; ef.fillAmount = 1f; }
+        if (eFill != null) Stretch(eFill.rt());
         wv.enemyHpFill = ef;
         wv.enemyNameText = CreateText("EnemyName", worldViewGO.transform, 22, Color.white, TextAnchor.MiddleCenter);
-        wv.enemyNameText.rt().anchorMin = wv.enemyNameText.rt().anchorMax = new Vector2(0.76f, 0.86f);
-        wv.enemyNameText.rt().sizeDelta = new Vector2(200, 40);
+        SetCenter(wv.enemyNameText.rt(), new Vector2(0.76f, 0.86f), new Vector2(200, 40));
         wv.enemyHpText = CreateText("EnemyHpTxt", eBarBg.transform, 20, Color.white, TextAnchor.MiddleCenter);
-        Stretch(wv.enemyHpText.rt());
+        if (wv.enemyHpText != null) Stretch(wv.enemyHpText.rt());
 
         // 傷害數字模板(池)
         var dmgTplGo = new GameObject("DmgTpl"); dmgTplGo.transform.SetParent(worldViewGO.transform, false);
@@ -199,14 +221,14 @@ public class GameBootstrapper : MonoBehaviour
 
         // 波次橫幅（第 X 波 / BOSS）
         var waveBanner = CreateText("WaveBanner", worldViewGO.transform, 30, new Color(.85f, .9f, 1f), TextAnchor.UpperCenter);
-        SetRect(waveBanner.rt(), new Vector2(0, 0.9f), new Vector2(1, 1f), Vector2.zero, Vector2.zero);
+        Place(waveBanner, new Vector2(0, 0.9f), new Vector2(1, 1f), Vector2.zero, Vector2.zero);
         wv.waveBanner = waveBanner;
 
         // 快速進入秘境的浮動按鈕（UX：一眼看到「現在能做什麼」）
         var quickRunBtn = CreateButton("⚔ 靈玉秘境", worldViewGO.transform, new Color(.55f, .28f, .65f));
-        SetRect(quickRunBtn.rt(), new Vector2(.62f, .02f), new Vector2(.98f, .12f), Vector2.zero, Vector2.zero);
-        quickRunBtn.onClick.AddListener(() => RunController.I?.StartRun(Mathf.Max(1, GameSave.Data.currentStage)));
-        var quickLbl = quickRunBtn.GetComponentInChildren<TMP_Text>();
+        if (quickRunBtn != null) SetRect(quickRunBtn.rt(), new Vector2(.62f, .02f), new Vector2(.98f, .12f), Vector2.zero, Vector2.zero);
+        if (quickRunBtn) quickRunBtn.onClick.AddListener(() => RunController.I?.StartRun(Mathf.Max(1, GameSave.Data.currentStage)));
+        var quickLbl = quickRunBtn != null ? quickRunBtn.GetComponentInChildren<TMP_Text>() : null;
         if (quickLbl) quickLbl.fontSize = 26;
 
         // buff 標籤列
@@ -217,7 +239,10 @@ public class GameBootstrapper : MonoBehaviour
         blRT.anchorMin = new Vector2(0.05f, 0.02f); blRT.anchorMax = new Vector2(0.95f, 0.08f);
         blRT.offsetMin = blRT.offsetMax = Vector2.zero;
         wv.buffLabel = buffLbl.transform;
+        });
 
+        Step("下半部:Dock+面板", () =>
+        {
         // ==== 下半部:Dock(面板切換區) ====
         var dock = CreatePanel("Dock", middle.transform, new Color(0.11f, 0.12f, 0.18f),
             Vector2.zero, new Vector2(1, 0.45f), Vector2.zero, Vector2.zero);
@@ -230,20 +255,20 @@ public class GameBootstrapper : MonoBehaviour
         var mp = main.AddComponent<MainPanelUI>();
         // 排版：上半=离线横幅 → 下一目标；下半=三顆行動按鈕（大按钮、拇指可及）
         mp.offlineBanner = CreateText("Offline", main.transform, 30, new Color(1f, .9f, .5f), TextAnchor.MiddleCenter);
-        SetRect(mp.offlineBanner.rt(), new Vector2(.05f, .74f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
+        Place(mp.offlineBanner, new Vector2(.05f, .74f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
         mp.goalLabel = CreateText("Goal", main.transform, 28, new Color(.95f, .95f, .8f), TextAnchor.UpperCenter);
-        SetRect(mp.goalLabel.rt(), new Vector2(.05f, .46f), new Vector2(.95f, .74f), Vector2.zero, Vector2.zero);
+        Place(mp.goalLabel, new Vector2(.05f, .46f), new Vector2(.95f, .74f), Vector2.zero, Vector2.zero);
         mp.dungeonBtn = CreateButton("⚔ 靈玉秘境（即時戰鬥）", main.transform, new Color(.55f, .28f, .65f));
-        SetRect(mp.dungeonBtn.rt(), new Vector2(.06f, .30f), new Vector2(.94f, .43f), Vector2.zero, Vector2.zero);
+        Place(mp.dungeonBtn, new Vector2(.06f, .30f), new Vector2(.94f, .43f), Vector2.zero, Vector2.zero);
         mp.claimBtn = CreateButton("領取離線收益", main.transform, new Color(.2f, .5f, .3f));
-        SetRect(mp.claimBtn.rt(), new Vector2(.06f, .14f), new Vector2(.48f, .27f), Vector2.zero, Vector2.zero);
+        Place(mp.claimBtn, new Vector2(.06f, .14f), new Vector2(.48f, .27f), Vector2.zero, Vector2.zero);
         mp.stageBtn = CreateButton("關卡掃蕩", main.transform, new Color(.6f, .4f, .15f));
-        SetRect(mp.stageBtn.rt(), new Vector2(.52f, .14f), new Vector2(.94f, .27f), Vector2.zero, Vector2.zero);
+        Place(mp.stageBtn, new Vector2(.52f, .14f), new Vector2(.94f, .27f), Vector2.zero, Vector2.zero);
         mp.forgeBtn = CreateButton("整理背包", main.transform, new Color(.35f, .3f, .55f));
-        SetRect(mp.forgeBtn.rt(), new Vector2(.06f, .0f), new Vector2(.48f, .12f), Vector2.zero, Vector2.zero);
-        mp.claimBtn.onClick.AddListener(() => IdleSystem.I?.CollectOfflineNow());
-        mp.stageBtn.onClick.AddListener(() => UIManager.I?.Open("Stages"));
-        mp.forgeBtn.onClick.AddListener(() => UIManager.I?.Open("Equip"));
+        Place(mp.forgeBtn, new Vector2(.06f, .0f), new Vector2(.48f, .12f), Vector2.zero, Vector2.zero);
+        if (mp.claimBtn) mp.claimBtn.onClick.AddListener(() => IdleSystem.I?.CollectOfflineNow());
+        if (mp.stageBtn) mp.stageBtn.onClick.AddListener(() => UIManager.I?.Open("Stages"));
+        if (mp.forgeBtn) mp.forgeBtn.onClick.AddListener(() => UIManager.I?.Open("Equip"));
 
         // === 面板 2:Equip ===
         var equip = CreatePanel("P_Equip", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -255,16 +280,16 @@ public class GameBootstrapper : MonoBehaviour
         {
             var b = CreateButton($"槽位{i}", slotRow.transform, new Color(.2f, .22f, .3f));
             int si = i;
-            b.onClick.AddListener(() => InventorySystem.SmartEquipBest((EquipSlot)si));
+            if (b) b.onClick.AddListener(() => InventorySystem.SmartEquipBest((EquipSlot)si));
         }
         var bagGrid = CreateGrid("BagGrid", equip.transform, 4, new Vector2(.03f, .30f), new Vector2(.97f, .70f));
         ep.bagGrid = bagGrid.transform;
         var cellTpl = CreateButton("CellTpl", bagGrid.transform, Color.white);
         cellTpl.name = "cellPrefab";
-        ep.cellPrefab = cellTpl.gameObject;
-        cellTpl.gameObject.SetActive(false);
+        ep.cellPrefab = cellTpl != null ? cellTpl.gameObject : null;
+        if (cellTpl != null) cellTpl.gameObject.SetActive(false);
         ep.detailText = CreateText("Detail", equip.transform, 26, Color.white, TextAnchor.UpperLeft);
-        SetRect(ep.detailText.rt(), new Vector2(.03f, .08f), new Vector2(.62f, .29f), Vector2.zero, Vector2.zero);
+        Place(ep.detailText, new Vector2(.03f, .08f), new Vector2(.62f, .29f), Vector2.zero, Vector2.zero);
         string[] ops = { "強化", "洗鍊", "升階", "穿戴", "分解", "一鍵清理" };
         Color[] oc = { new Color(.25f, .45f, .7f), new Color(.55f, .3f, .7f), new Color(.7f, .5f, .2f), new Color(.2f, .55f, .3f), new Color(.6f, .25f, .25f), new Color(.4f, .4f, .45f) };
         var actRow = CreateGrid("Ops", equip.transform, 3, new Vector2(.63f, .06f), new Vector2(.98f, .29f));
@@ -287,7 +312,7 @@ public class GameBootstrapper : MonoBehaviour
         Stretch(cha.rt());
         var cp = cha.AddComponent<CharacterPanelUI>();
         cp.statText = CreateText("Stats", cha.transform, 30, Color.white, TextAnchor.UpperCenter);
-        SetRect(cp.statText.rt(), new Vector2(.05f, .72f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
+        Place(cp.statText, new Vector2(.05f, .72f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
         var gfGrid = CreateGrid("Gongfa", cha.transform, 2, new Vector2(.03f, .06f), new Vector2(.97f, .70f));
         cp.gongfaRow = gfGrid.transform;
         cp.upgradeButtons = new Button[8];
@@ -301,17 +326,17 @@ public class GameBootstrapper : MonoBehaviour
             new Vector2(.03f, .34f), new Vector2(.97f, .97f));
         sp.listParent = listContent;
         var itemTpl = CreateButton("第 X 夜", listContent, Color.gray);
-        sp.itemPrefab = itemTpl.gameObject;
-        itemTpl.gameObject.SetActive(false);
+        sp.itemPrefab = itemTpl != null ? itemTpl.gameObject : null;
+        if (itemTpl != null) itemTpl.gameObject.SetActive(false);
         sp.resultText = CreateText("Result", stg.transform, 26, Color.white, TextAnchor.UpperLeft);
-        SetRect(sp.resultText.rt(), new Vector2(.05f, .04f), new Vector2(.55f, .26f), Vector2.zero, Vector2.zero);
+        Place(sp.resultText, new Vector2(.05f, .04f), new Vector2(.55f, .26f), Vector2.zero, Vector2.zero);
 
         // ★ 秘境（Roguelite）入口：文案直接告訴玩家獎勵與特色
         sp.runHint = CreateText("RunHint", stg.transform, 22, new Color(.9f, .88f, .75f), TextAnchor.UpperLeft);
-        SetRect(sp.runHint.rt(), new Vector2(.57f, .04f), new Vector2(.98f, .26f), Vector2.zero, Vector2.zero);
+        Place(sp.runHint, new Vector2(.57f, .04f), new Vector2(.98f, .26f), Vector2.zero, Vector2.zero);
         var runB = CreateButton("進入靈玉秘境（即時戰鬥）", stg.transform, new Color(.62f, .3f, .7f));
         SetRect(runB.rt(), new Vector2(.57f, .27f), new Vector2(.98f, .33f), Vector2.zero, Vector2.zero);
-        var runT = runB.GetComponentInChildren<TMP_Text>();
+        var runT = runB != null ? runB.GetComponentInChildren<TMP_Text>() : null;
         if (runT) runT.fontSize = 22;
         sp.runBtn = runB;
 
@@ -324,17 +349,20 @@ public class GameBootstrapper : MonoBehaviour
         string[] names = { "武器", "頭部", "衣服", "飾品", "法器", "鞋子" };
         for (int i = 0; i < 6; i++) fp.slotButtons[i] = CreateButton(names[i], fRow.transform, new Color(.25f, .28f, .4f));
         fp.infoText = CreateText("Info", forge.transform, 30, Color.white, TextAnchor.MiddleCenter);
-        SetRect(fp.infoText.rt(), new Vector2(.05f, .35f), new Vector2(.95f, .58f), Vector2.zero, Vector2.zero);
+        Place(fp.infoText, new Vector2(.05f, .35f), new Vector2(.95f, .58f), Vector2.zero, Vector2.zero);
         var doBtn = CreateButton("開始鍛造", forge.transform, new Color(.6f, .35f, .15f));
         SetRect(doBtn.rt(), new Vector2(.2f, .15f), new Vector2(.8f, .3f), Vector2.zero, Vector2.zero);
-        doBtn.onClick.AddListener(fp.DoForge);
+        if (doBtn) doBtn.onClick.AddListener(fp.DoForge);
 
         // ---- UIManager 綁定 Dock 內的面板 ----
         var um = dock.AddComponent<UIManager>();
         um.panelNames = new[] { "Main", "Equip", "Character", "Stages", "Forge" };
         um.panels = new[] { main, equip, cha, stg, forge };
         um.InitPanels();
+        });
 
+        Step("全局遮罩", () =>
+        {
         // ==== 全局遮罩 1:ChoiceOverlay(三選一) ====
         var choiceGo = CreatePanel("ChoiceOverlay", rootRT, new Color(0, 0, 0, 0.6f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -356,12 +384,12 @@ public class GameBootstrapper : MonoBehaviour
         cardTpl.AddComponent<Button>();
         cardTpl.AddComponent<LayoutElement>().preferredWidth = 260;
         var cn = CreateText("Name", cardTpl.transform, 28, Color.white, TextAnchor.UpperCenter);
-        SetRect(cn.rt(), Vector2.zero, Vector2.one, new Vector2(10, -60), new Vector2(-10, -10));
+        Place(cn, Vector2.zero, Vector2.one, new Vector2(10, -60), new Vector2(-10, -10));
         var cr = CreateText("Rarity", cardTpl.transform, 20, new Color(1f, 0.9f, 0.3f), TextAnchor.UpperRight);
-        SetRect(cr.rt(), Vector2.zero, Vector2.one, new Vector2(-20, -40), new Vector2(0, 0));
+        Place(cr, Vector2.zero, Vector2.one, new Vector2(-20, -40), new Vector2(0, 0));
         var cd = CreateText("Desc", cardTpl.transform, 22, Color.white, TextAnchor.LowerCenter);
-        SetRect(cd.rt(), Vector2.zero, Vector2.one, new Vector2(10, 20), new Vector2(-10, 120));
-        cardTpl.SetActive(false);
+        Place(cd, Vector2.zero, Vector2.one, new Vector2(10, 20), new Vector2(-10, 120));
+        if (cardTpl != null) cardTpl.SetActive(false);
         co.cardPrefab = cardTpl;
 
         // ==== 全局遮罩 2:RunResult(結算) ====
@@ -374,9 +402,9 @@ public class GameBootstrapper : MonoBehaviour
         var rr = resultGo.AddComponent<RunResultUI>();
         rr.root = resCG;
         rr.title = CreateText("Title", resultGo.transform, 48, new Color(1f, 0.9f, 0.3f), TextAnchor.MiddleCenter);
-        SetRect(rr.title.rt(), new Vector2(0, 0.78f), new Vector2(1, 0.92f), Vector2.zero, Vector2.zero);
+        Place(rr.title, new Vector2(0, 0.78f), new Vector2(1, 0.92f), Vector2.zero, Vector2.zero);
         rr.summaryText = CreateText("Summary", resultGo.transform, 28, Color.white, TextAnchor.MiddleCenter);
-        SetRect(rr.summaryText.rt(), new Vector2(0, 0.05f), new Vector2(1, 0.15f), Vector2.zero, Vector2.zero);
+        Place(rr.summaryText, new Vector2(0, 0.05f), new Vector2(1, 0.15f), Vector2.zero, Vector2.zero);
 
         var lootGo = CreatePanel("LootList", resultGo.transform, new Color(0.1f, 0.1f, 0.15f, 0.9f),
             new Vector2(0.1f, 0.18f), new Vector2(0.9f, 0.75f), Vector2.zero, Vector2.zero);
@@ -390,16 +418,19 @@ public class GameBootstrapper : MonoBehaviour
         rowTpl.AddComponent<Button>();
         rowTpl.AddComponent<LayoutElement>().preferredHeight = 80;
         var rn = CreateText("Name", rowTpl.transform, 26, Color.white, TextAnchor.MiddleLeft);
-        SetRect(rn.rt(), Vector2.zero, new Vector2(1, 0.5f), new Vector2(20, 0), Vector2.zero);
+        Place(rn, Vector2.zero, new Vector2(1, 0.5f), new Vector2(20, 0), Vector2.zero);
         var rs = CreateText("Stat", rowTpl.transform, 22, new Color(0.8f, 0.8f, 0.8f), TextAnchor.MiddleLeft);
-        SetRect(rs.rt(), Vector2.zero, new Vector2(1, 0.5f), new Vector2(20, -40), Vector2.zero);
-        rowTpl.SetActive(false);
+        Place(rs, Vector2.zero, new Vector2(1, 0.5f), new Vector2(20, -40), Vector2.zero);
+        if (rowTpl != null) rowTpl.SetActive(false);
         rr.lootRowPrefab = rowTpl;
 
         var confBtn = CreateButton("確認並結算", resultGo.transform, new Color(0.2f, 0.6f, 0.3f));
         SetRect(confBtn.rt(), new Vector2(0.3f, 0.02f), new Vector2(0.7f, 0.13f), Vector2.zero, Vector2.zero);
         rr.confirmBtn = confBtn;
+        });
 
+        Step("Toast+導航", () =>
+        {
         // ---- Toast（掛在根層，任何面板都能看見）----
         var toastGO = new GameObject("Toast"); toastGO.transform.SetParent(rootRT, false);
         var toastGroup = toastGO.AddComponent<CanvasGroup>();
@@ -409,13 +440,14 @@ public class GameBootstrapper : MonoBehaviour
         var trt = toastGO.GetComponent<RectTransform>();
         trt.anchorMin = new Vector2(.1f, .55f); trt.anchorMax = new Vector2(.9f, .65f);
         trt.offsetMin = trt.offsetMax = Vector2.zero;
-        SetRect(uiToast.rt(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Place(uiToast, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         um.BindToast(uiToast, toastGroup);   // ★ Toast 交給 UIManager 統一播放（含淡出）
 
         // ---- 底部導航 ----
+        // ★ 修復：底部導航列用「錨點(0,0)-(1,0) + offsetMin(0,0)/offsetMax(0,170)」才有 170 高；
+        //   之前多了一行 sizeDelta=(0,170) 會把 offsetMax.y 蓋掉 → 高度變 0，整條 NavBar 消失。
         var nav = CreatePanel("NavBar", rootRT, new Color(.13f, .14f, .2f),
             new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 0), new Vector2(0, 170f));
-        ((RectTransform)nav.transform).sizeDelta = new Vector2(0, 170);
 
         string[] tabs = { "掛機", "装备", "角色", "關卡", "鍛造" };
         string[] keys = { "Main", "Equip", "Character", "Stages", "Forge" };
@@ -426,28 +458,45 @@ public class GameBootstrapper : MonoBehaviour
             rt.anchorMin = new Vector2(i / 5f + .01f, .1f); rt.anchorMax = new Vector2((i + 1) / 5f - .01f, .9f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             string k = keys[i];
-            b.onClick.AddListener(() => um.Open(k));
+            if (b) b.onClick.AddListener(() => um.Open(k));
         }
+        });
 
         // （IdleSystem / RunController 已在 Awake 早期建立，這裡不再重複創建）
         ApplyFont();
         top.Refresh();
     }
 
+    /// <summary>
+    /// ★ 在任何 TMP 元件诞生之前，先把「TMP 預設字型」定成中文字型。
+    /// 這樣所有 CreateText／動態生成的文字一開始就用正確字型，
+    /// 不會出現「先用無中文的字型建好、事後才換字型」導致的損毀字符 → NullReferenceException。
+    /// </summary>
+    void ApplyFontEarly()
+    {
+        var f = CJKFont;
+        if (f != null)
+        {
+            TMPro.TMP_Settings.defaultFontAsset = f;
+            Debug.Log("[Boot] 預設字型＝" + f.name);
+        }
+    }
+
     /// <summary>把所有文字套上專案內的中文字型（找不到就沿用 TMP 預設，不會報錯）。</summary>
     void ApplyFont()
     {
         var cjk = CJKFont;
-        if (cjk == null) return;                    // 已在外層印過警告
-        TMPro.TMP_Settings.defaultFontAsset = cjk;  // ★ 之後新建立的 TMP 也自動用中文字型
+        if (cjk == null) return;                    // 已在外層印過警告（畫面仍可用西文正常運作）
+        TMPro.TMP_Settings.defaultFontAsset = cjk;
+        if (canvas == null) return;
         var all = canvas.GetComponentsInChildren<TextMeshProUGUI>(true);
         foreach (var t in all)
         {
-            t.font = cjk;
+            if (t == null) continue;
+            if (t.font != cjk) { t.font = cjk; t.SetAllDirty(); }   // ★ 換字型後務必標脏，讓 TMP 重建字符
             t.enableAutoSizing = false;
-            if (!t.enabled) t.enabled = true;      // 只還原原本就該顯示的文字，不誤開隱藏模板
+            t.enabled = true;                // ★ 還原被「無字型」保護性關閉的文字
         }
-        // 動態生成的傷害數字預製体也要換字型（它在 pool 內）
         if (WorldView.I != null) WorldView.I.ApplyFontToPool(cjk);
     }
 
@@ -465,9 +514,11 @@ public class GameBootstrapper : MonoBehaviour
             if (cjkFont != null || cjkTried) return cjkFont;
             cjkTried = true;
 
-            // 1) 先驗「資產名稱 == 檔案名稱」，不符就跳過（避免 Unity 的命名衝突警告與方框字）
+            // 1) 先驗「資產名稱 == 檔案名稱」，不符就跳過
+            //    （你上次出現 Main Object Name '...Bold SDF' does not match filename '...Regular SDF'，
+            //     這種资产在 Unity 內部已被標記為丟棄，讀它任何欄位都可能回傳 null → NRE，必須直接略過。）
             var named = SafeLoad<TMP_FontAsset>("Fonts/SourceHanSansCN-Regular SDF");
-            if (IsValid(named) && named.name == "SourceHanSansCN-Regular SDF")
+            if (named != null && named.name == "SourceHanSansCN-Regular SDF")
             {
                 cjkFont = named;
                 Debug.Log("[CJK] 使用已生成的 TMP 字型：Resources/Fonts/SourceHanSansCN-Regular SDF");
@@ -516,13 +567,27 @@ public class GameBootstrapper : MonoBehaviour
     /// </summary>
     static Font FindFontByName(string name) => SafeLoad<Font>("Fonts/" + name);
 
-    /// <summary>Resources.Load 但過濾掉「損壞/名稱不符」的资产（Unity 會回傳非 null 但已丟棄的物件）。</summary>
+    /// <summary>
+    /// Resources.Load 的安全版：過濾掉「損壞 / 被 Unity 丟棄 / 名稱與檔名不符」的资产。
+    /// 這類对象 Resources.Load 仍會回傳非 null，但存取其內容就會拋例外或回傳 null，
+    /// 之後任何 RectTransform／佈局操作都可能連鎖變成 NullReferenceException。
+    /// </summary>
     static T SafeLoad<T>(string path) where T : UnityEngine.Object
     {
         try
         {
             var o = Resources.Load<T>(path);
-            return IsValid(o) ? o : null;
+            if (o == null) return null;                       // 不存在或已被銷毀
+            // 名稱與「檔案末段」不一致 → Unity 已將該物件標記為擲棄，一律不用
+            int slash = path.LastIndexOf('/');
+            string file = slash >= 0 ? path.Substring(slash + 1) : path;
+            if (!string.Equals(o.name, file, System.StringComparison.Ordinal))
+            {
+                Debug.LogWarning($"[SafeLoad] 略過「{path}」：資產名稱({o.name}) ≠ 檔名({file})。\n" +
+                    "→ 請重新產生此 TMP 字型资产（Window→TextMeshPro→Font Asset Creator），存檔時名稱要與檔名一致。");
+                return null;
+            }
+            return o;
         }
         catch (Exception e) { Debug.LogWarning("[SafeLoad] " + path + " → " + e.Message); return null; }
     }
@@ -530,7 +595,7 @@ public class GameBootstrapper : MonoBehaviour
     static bool IsValid(UnityEngine.Object o)
     {
         if (o == null) return false;                 // 已被刪除
-        try { _ = o.name; return !string.IsNullOrEmpty(o.name); } // 名稱與檔案不符時 Unity 會在此報錯
+        try { return !string.IsNullOrEmpty(o.name); }
         catch { return false; }
     }
 
@@ -548,13 +613,46 @@ public class GameBootstrapper : MonoBehaviour
 #endif
     }
 
-    static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero; }
+    static void Stretch(RectTransform rt)
+    {
+        if (rt == null) return;                     // ★ 防呆：上游元件缺失時靜默略過，不打斷整條 BuildUI
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+    }
 
     static void SetRect(RectTransform rt, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax)
-    { rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = offMin; rt.offsetMax = offMax; }
+    {
+        if (rt == null) return;
+        rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = offMin; rt.offsetMax = offMax;
+    }
+
+    /// <summary>以「中心錨點 + 尺寸」定位（避免 anchorMin/Max 連續賦值在元件為 null 時崩潰）。</summary>
+    static void SetCenter(RectTransform rt, Vector2 anchor, Vector2 size)
+    {
+        if (rt == null) return;
+        rt.anchorMin = rt.anchorMax = anchor;
+        rt.sizeDelta = size;
+        rt.anchoredPosition = Vector2.zero;
+    }
+
+    /// <summary>「建立＋定位」一步完成；t 為 null 時靜默略過（不會把整條 BuildUI 打斷）。</summary>
+    static TMPro.TextMeshProUGUI Place(TMPro.TextMeshProUGUI t, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax)
+    {
+        if (t == null) return null;
+        var rt = (RectTransform)t.transform;
+        rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = offMin; rt.offsetMax = offMax;
+        return t;
+    }
+
+    /// <summary>把一大段 UI 組裝包起來：單段失敗只印錯誤、不影響其他面板（避免半套畫面）。</summary>
+    void Step(string name, System.Action build)
+    {
+        try { Log("BuildUI/" + name); build(); }
+        catch (System.Exception e) { Debug.LogError("[BuildUI] 「" + name + "」組裝失敗：" + e); }
+    }
 
     GameObject CreatePanel(string name, Transform parent, Color col, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax)
     {
+        if (parent == null) { Debug.LogWarning("[BuildUI] 遺漏父節點：" + name); return null; }
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var img = go.AddComponent<Image>(); img.sprite = whiteSq; img.color = col;
         var rt = go.GetComponent<RectTransform>();
@@ -564,6 +662,7 @@ public class GameBootstrapper : MonoBehaviour
 
     Image CreateImage(string name, Transform parent, Color col)
     {
+        if (parent == null) { Debug.LogWarning("[BuildUI] 遺漏父節點：" + name); return null; }
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var img = go.AddComponent<Image>(); img.sprite = whiteSq; img.color = col;
         img.rt().sizeDelta = new Vector2(100, 100);
@@ -572,8 +671,14 @@ public class GameBootstrapper : MonoBehaviour
 
     TextMeshProUGUI CreateText(string name, Transform parent, int size, Color col, TextAnchor anchor = TextAnchor.MiddleCenter)
     {
+        // ★ 防呆：父節點若已被銷毀（前一個步驟失敗的連鎖反應），這裡直接回傳 null，
+        //   而不是讓整條 BuildUI 崩在中間、只剩半套畫面。所有呼叫端都有 if(x) 檢查。
+        if (parent == null) { Debug.LogWarning("[BuildUI] 遺漏父節點：" + name); return null; }
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var t = go.AddComponent<TextMeshProUGUI>();
+        // ★ TMP 若連 defaultFontAsset 都拿不到（專案沒跑過 Import TMP Essentials）會內部空參考，
+        //   這裡先補一層保護：沒有字型就暫時關掉元件，等 ApplyFont() 再打開。
+        if (TMPro.TMP_Settings.defaultFontAsset == null) t.enabled = false;
         t.fontSize = size; t.color = col; t.alignment = (TextAlignmentOptions)anchor;
         t.text = name; t.overflowMode = TextOverflowModes.Ellipsis;
 #if UNITY_2022_3_OR_NEWER || UNITY_6000_0_OR_NEWER
@@ -586,6 +691,7 @@ public class GameBootstrapper : MonoBehaviour
 
     Button CreateButton(string label, Transform parent, Color col)
     {
+        if (parent == null) { Debug.LogWarning("[BuildUI] 遺漏父節點：Btn_" + label); return null; }
         var go = new GameObject("Btn_" + label); go.transform.SetParent(parent, false);
         var img = go.AddComponent<Image>(); img.sprite = whiteSq; img.color = col;
         var b = go.AddComponent<Button>();
