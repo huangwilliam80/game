@@ -399,23 +399,62 @@ public class GameBootstrapper : MonoBehaviour
         top.Refresh();
     }
 
-    /// <summary>把所有文字套上專案內的中文字型（沒有就沿用 TMP 預設）。</summary>
+    /// <summary>把所有文字套上專案內的中文字型（找不到就沿用 TMP 預設，不會報錯）。</summary>
     void ApplyFont()
     {
-        var f = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        var cjk = CJKFont;
+        var latin = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
         var all = canvas.GetComponentsInChildren<TextMeshProUGUI>(true);
         foreach (var t in all)
         {
-            if (CJKFont != null) t.font = CJKFont;
-            else if (f != null) t.font = f;
+            if (cjk != null) t.font = cjk;
+            else if (latin != null) t.font = latin;
             t.enableAutoSizing = false;
         }
+        if (cjk == null)
+            Debug.LogWarning("[GameBootstrapper] 找不到中文 TMP 字型，中文可能顯示為方框。\n" +
+                "解決：Window→TextMeshPro→Font Asset Creator，用 Assets/Fonts/SourceHanSansCN-Regular.otf " +
+                "產生 SDF 字型存到 Assets/Resources/Fonts/SourceHanSansCN-Regular SDF.asset；" +
+                "或直接指定 Assets/Fonts/ 底下的 .otf（見 LoadCJKFont 的 fallback）。");
     }
 
-    /// <summary>中文字型：請把 SourceHanSansCN-Regular SDF.asset 放到 Assets/Resources/Fonts/ 後自動生效。</summary>
-    static TMP_FontAsset CJKFont => cjkFont != null ? cjkFont : (cjkFont =
-        Resources.Load<TMP_FontAsset>("Fonts/SourceHanSansCN-Regular SDF"));
+    /// <summary>
+    /// 中文字型搜尋順序：
+    /// 1) Resources/Fonts/*SDF*（自己生成的 TMP 字型资产，效果最好）
+    /// 2) ProjectSettings 裡 TMP 預設字型（若已改成思源黑體 SDF）
+    /// 3) 直接吃 Assets/Fonts/*.otf（TMP 可即時轉成動態字型资产，能顯示中文但字級較大）
+    /// </summary>
+    static TMP_FontAsset CJKFont
+    {
+        get
+        {
+            if (cjkFont != null || cjkTried) return cjkFont;
+            cjkTried = true;
+            cjkFont = Resources.Load<TMP_FontAsset>("Fonts/SourceHanSansCN-Regular SDF")
+                   ?? FirstInFolder("Fonts", "SDF");
+            if (cjkFont == null)
+            {
+                // 免生成步驟：直接把 otf/ttf 丟進 Resources/Fonts/ 也能用
+                cjkFont = FirstInFolder("Fonts", null);
+            }
+            return cjkFont;
+        }
+    }
     static TMP_FontAsset cjkFont;
+    static bool cjkTried;
+
+    static TMP_FontAsset FirstInFolder(string folder, string mustContain)
+    {
+        var assets = Resources.LoadAll<TMP_FontAsset>(folder);
+        if (assets == null || assets.Length == 0) return null;
+        foreach (var a in assets)
+        {
+            if (a == null) continue;
+            if (mustContain == null || a.name.IndexOf(mustContain, StringComparison.OrdinalIgnoreCase) >= 0)
+                return a;
+        }
+        return assets[0];
+    }
 
     // ================= 小工具 =================
     void EnsureEventSystem()
