@@ -35,14 +35,29 @@ public class WorldView : MonoBehaviour
 
     void Awake() { I = this; }
 
+    /// <summary>
+    /// ★ 池必須在「世界視窗尺寸已算好」之後才建立。
+    /// Unity 在同一幀內 Instantiate 出的 UI，其 RectTransform 尚未完成佈局（尺寸為 0），
+    /// 若直接在 Awake / 事件訂閱當下建池，所有飄字與敵人會拿到非法矩形 → NullReferenceException。
+    /// 用 Start + 延遲一幀來保證 worldArea.rect 是有效值。
+    /// </summary>
+    void Start() => StartCoroutine(BuildPoolsNextFrame());
+
+    System.Collections.IEnumerator BuildPoolsNextFrame()
+    {
+        yield return null;
+        BuildPools();
+        ShowIdleStage();
+    }
+
     void OnEnable()
     {
         GameEvents.OnRunStart += OnRunStart;
         GameEvents.OnRunEnd += OnRunEnd;
         GameEvents.OnWaveCleared += OnWaveCleared;
         GameEvents.OnStageChanged += ShowIdleStage;
-        BuildPools();
-        ShowIdleStage();
+        // ★ 不在這裡 BuildPools()：改由 Start 延遲一幀（見上方註解）
+        if (dmgPool.Count > 0) ShowIdleStage();
     }
 
     void OnDisable()
@@ -64,15 +79,20 @@ public class WorldView : MonoBehaviour
 
     void BuildPools()
     {
-        if (dmgPool.Count > 0 || dmgNumberPrefab == null) return;
-        for (int i = 0; i < 20; i++)
+        // ★ 防呆：容器還沒佈局完成（rect 寬高為 0）時不要建池，否則子節點尺寸全 0 → 後續空參考
+        if (worldArea == null || worldArea.rect.width < 1f || worldArea.rect.height < 1f) return;
+
+        if (dmgPool.Count == 0 && dmgNumberPrefab != null)
         {
-            var g = Instantiate(dmgNumberPrefab, worldArea);
-            g.SetActive(false);
-            dmgPool.Add(g);
-            dmgTimers.Add(0f);
+            for (int i = 0; i < 20; i++)
+            {
+                var g = Instantiate(dmgNumberPrefab, worldArea);
+                g.SetActive(false);
+                dmgPool.Add(g);
+                dmgTimers.Add(0f);
+            }
         }
-        if (enemyPrefab != null && enemyGo == null)
+        if (enemyPrefab != null && enemyGo == null && enemyAnchor != null)
         {
             enemyGo = Instantiate(enemyPrefab, enemyAnchor);
             enemyGo.SetActive(true);
@@ -154,6 +174,9 @@ public class WorldView : MonoBehaviour
     /// <summary>在螢幕隨機位置噴一個傷害數字,1 秒後自動回池。</summary>
     public void SpawnDmg(float amount, bool isCrit, bool toHero)
     {
+        if (dmgPool.Count == 0) BuildPools();      // 尚未就緒時補建（避免整場 run 沒有飄字）
+        if (dmgPool.Count == 0) return;            // 仍失敗就靜默跳過，不影響戰鬥邏輯
+
         int idx = -1;
         for (int i = 0; i < dmgPool.Count; i++)
             if (!dmgPool[i].activeSelf) { idx = i; break; }
@@ -205,9 +228,12 @@ public class WorldView : MonoBehaviour
 
     void Update()
     {
+        // 池若因容器尚未就緒而沒建起來，之後補建（最多試到成功為止，成本極低）
+        if (dmgPool.Count == 0) BuildPools();
+
         for (int i = 0; i < dmgPool.Count; i++)
         {
-            if (!dmgPool[i].activeSelf) continue;
+            if (dmgPool[i] == null || !dmgPool[i].activeSelf) continue;
             dmgTimers[i] += Time.deltaTime;
             float t = dmgTimers[i];
             var rt = dmgPool[i].GetComponent<RectTransform>();

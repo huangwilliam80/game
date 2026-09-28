@@ -23,6 +23,18 @@ public class GameBootstrapper : MonoBehaviour
     public static GameBootstrapper I { get; private set; }
     Sprite whiteSq;
 
+    /// <summary>
+    /// 場景自舉：不管這個腳本有沒有掛在場景上，Play／打包都會自動建立一份。
+    /// （新手常不小心把 GameBootstrapper 從場景刪掉 → 畫面全黑，這裡徹底防掉這個坑。）
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void AutoCreate()
+    {
+        if (I != null) return;                                   // 已存在（場景有掛 or 之前建過）
+        var go = new GameObject("[GameBootstrapper]");
+        go.AddComponent<GameBootstrapper>();                     // AddComponent 同幀執行 Awake
+    }
+
     void Awake()
     {
         if (I != null && I != this) { Destroy(gameObject); return; }
@@ -33,16 +45,39 @@ public class GameBootstrapper : MonoBehaviour
 
         // ★ 統一由 ApplyFont() 指定中文字型；這裡只確保自動 sizing 不會干擾版面
 
-        EquipmentDatabase.Init();
-        CharacterSystem.Init();
-        GameSave.Load();
-        foreach (var e in GameSave.Data.bags) e.RegenerateAffixes();
-        foreach (var e in GameSave.Data.equipped) if (e != null) e.RegenerateAffixes();
+        // ---- 系統層先就緒（全部 Init 完成後才碰 UI，避免任何「靜態單體尚未建立」的空參考）----
+        try
+        {
+            EquipmentDatabase.Init();
+            CharacterSystem.Init();
+            GameSave.Load();
+            foreach (var e in GameSave.Data.bags) e.RegenerateAffixes();
+            foreach (var e in GameSave.Data.equipped) if (e != null) e.RegenerateAffixes();
 
-        var (sec, g, e2) = GameSave.SettleOffline();
-        BuildUI();
+            var idleGO = new GameObject("IdleSystem"); idleGO.transform.SetParent(transform, false);
+            idleGO.AddComponent<IdleSystem>();          // Awake 同步執行 → IdleSystem.I 可用
+            var runGO = new GameObject("RunController"); runGO.transform.SetParent(transform, false);
+            runGO.AddComponent<RunController>();        // Awake 同步執行 → RunController.I 可用
 
-        if (sec > 60) Debug.Log($"離線 {IdleSystem.Fmt(sec)}，已入帳 金幣+{g:N0} 經驗+{e2:N0}");
+            var (sec, g, e2) = GameSave.SettleOffline();
+            BuildUI();                                  // 內部另有 try/catch + 逐步防呆
+
+            if (sec > 60) Debug.Log($"離線 {IdleSystem.Fmt(sec)}，已入帳 金幣+{g:N0} 經驗+{e2:N0}");
+        }
+        catch (System.Exception ex)   // ★ 出錯時 Console 會直接告訴你是哪一步、為什麼，而不是丟回 Unity 內部堆疊
+        {
+            Debug.LogError("[GameBootstrapper] 啟動失敗：" + ex);
+            ShowFatalError(ex.Message);
+        }
+    }
+
+    /// <summary>最後手段：用 Unity 內建 IMGUI 顯示錯誤（不依賴 TMP／畫布），讓你看得到問題。</summary>
+    void ShowFatalError(string msg) { fatal = msg; }
+    string fatal;
+    void OnGUI()
+    {
+        if (string.IsNullOrEmpty(fatal)) return;
+        GUI.Label(new Rect(20, 20, 1000, 300), "启动失败（详见 Console）：\n" + fatal);
     }
 
     void Update()
@@ -104,7 +139,9 @@ public class GameBootstrapper : MonoBehaviour
         // ==== 上半部:WorldView(永遠顯示的戰鬥演出) ====
         var worldViewGO = CreatePanel("WorldView", middle.transform, new Color(0.05f, 0.08f, 0.12f),
             new Vector2(0, 0.45f), Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(worldViewGO.rt());
+        // ★ 修復 NullReferenceException：CreatePanel 已用 aMin/aMax 排好位置，
+        //   這裡若再 Stretch() 會被「錨點歸零 + offset 歸零」壓成 0x0，
+        //   之後 Instantiate(dmgTpl, worldArea) 與所有子節點都會得到非法矩形 → 空參考連鎖。
         var wv = worldViewGO.AddComponent<WorldView>();
         wv.worldArea = worldViewGO.rt();
 
@@ -184,7 +221,7 @@ public class GameBootstrapper : MonoBehaviour
         // ==== 下半部:Dock(面板切換區) ====
         var dock = CreatePanel("Dock", middle.transform, new Color(0.11f, 0.12f, 0.18f),
             Vector2.zero, new Vector2(1, 0.45f), Vector2.zero, Vector2.zero);
-        Stretch(dock.rt());
+        // ★ 同 WorldView：不可再 Stretch()，否則會把 0~0.45 的錨點清掉、與上半部重疊
         var content = dock.rt();
 
         // === 面板 1:Main ===
@@ -392,14 +429,7 @@ public class GameBootstrapper : MonoBehaviour
             b.onClick.AddListener(() => um.Open(k));
         }
 
-        // ---- 掛機系統 ----
-        var idleGO = new GameObject("IdleSystem"); idleGO.transform.SetParent(transform, false);
-        idleGO.AddComponent<IdleSystem>();
-
-        // ---- Roguelite Run 控制器 ★ 本次新增 ----
-        var runGO = new GameObject("RunController"); runGO.transform.SetParent(transform, false);
-        runGO.AddComponent<RunController>();
-
+        // （IdleSystem / RunController 已在 Awake 早期建立，這裡不再重複創建）
         ApplyFont();
         top.Refresh();
     }
