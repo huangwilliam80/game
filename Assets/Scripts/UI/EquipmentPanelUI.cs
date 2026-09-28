@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Reflection;
+using TMPro;
 
 public class EquipmentPanelUI : MonoBehaviour
 {
@@ -9,7 +10,7 @@ public class EquipmentPanelUI : MonoBehaviour
     public Transform equipRow;
     public Transform bagGrid;
     public GameObject cellPrefab;
-    public Text detailText;
+    public TMP_Text detailText;   // ★ 改為 TMP_Text
 
     [Header("操作按鈕")]
     public Button btnEnhance;
