@@ -1,51 +1,90 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using System.Reflection; 
 
-/// <summary>
-/// 裝備面板：顯示已裝備欄位、背包格子、裝備詳情與操作按鈕。
-/// 修復：OnEnable / BuildRows 加入空值保護，避免 AddComponent 時引用尚未賦值。
-/// </summary>
 public class EquipmentPanelUI : MonoBehaviour
 {
     [Header("引用（由 GameBootstrapper 自動指派）")]
-    public Transform equipRow;       // 6 個裝備槽位容器
-    public Transform bagGrid;        // 背包格子容器
-    public GameObject cellPrefab;    // 背包格子模板
-    public Text detailText;          // 裝備詳情文字
+    public Transform equipRow;
+    public Transform bagGrid;
+    public GameObject cellPrefab;
+    public Text detailText;
 
     [Header("操作按鈕")]
-    public Button btnEnhance;        // 強化
-    public Button btnReforge;        // 洗鍊
-    public Button btnUpgradeQ;       // 升階
-    public Button btnEquipSel;       // 穿戴
-    public Button btnDecompose;      // 分解
-    public Button btnCleanup;        // 一鍵清理
+    public Button btnEnhance;
+    public Button btnReforge;
+    public Button btnUpgradeQ;
+    public Button btnEquipSel;
+    public Button btnDecompose;
+    public Button btnCleanup;
 
     readonly List<GameObject> cells = new List<GameObject>();
     EquipmentInstance selected;
 
-    // ──────────────────────────────────────────────
-    //  生命週期
-    // ──────────────────────────────────────────────
     void OnEnable()
     {
-        // ★ 修復：引用尚未賦值時直接返回，避免 NullReference
         if (cellPrefab == null || bagGrid == null) return;
-
         BuildRows();
         RefreshDetail();
     }
 
-    // ──────────────────────────────────────────────
-    //  建立 / 刷新背包格子
-    // ──────────────────────────────────────────────
+    string GetEquipName(EquipmentInstance equip)
+    {
+        if (equip == null) return "?";
+        
+        var def = EquipmentDatabase.Get(equip.defId);
+        if (def == null) return $"裝備ID:{equip.defId}";
+
+        var type = def.GetType();
+        var nameProp = type.GetProperty("name") ?? type.GetProperty("equipName") ?? type.GetProperty("itemName");
+        var nameField = type.GetField("name") ?? type.GetField("equipName") ?? type.GetField("itemName");
+
+        if (nameProp != null) return nameProp.GetValue(def)?.ToString() ?? $"裝備{equip.defId}";
+        if (nameField != null) return nameField.GetValue(def)?.ToString() ?? $"裝備{equip.defId}";
+
+        return $"裝備{equip.defId}";
+    }
+
+    string GetShortName(EquipmentInstance equip)
+    {
+        if (equip == null) return "?";
+        return $"{equip.QualityName} {GetEquipName(equip)}\n+{equip.plus}";
+    }
+
+    string DescribeEquipment(EquipmentInstance equip)
+    {
+        if (equip == null) return "(空)";
+
+        string txt = $"【{equip.QualityName}】{GetEquipName(equip)}\n";
+        txt += $"等級：Lv.{equip.level}  強化：+{equip.plus}\n";
+        txt += $"戰力：{equip.Power}\n\n";
+
+        var stats = equip.FinalStats();
+        txt += "--- 最終屬性 ---\n";
+        if (stats.atk > 0.01f) txt += $"攻擊：{stats.atk:F1}\n";
+        if (stats.def > 0.01f) txt += $"防禦：{stats.def:F1}\n";
+        if (stats.hp > 0.01f) txt += $"生命：{stats.hp:F1}\n";
+        if (stats.critRate > 0.001f) txt += $"暴擊：{stats.critRate:P1}\n";
+        if (stats.speed > 0.01f) txt += $"速度：{stats.speed:F2}\n";
+        if (stats.special > 0.01f) txt += $"特效：{stats.special:F1}\n";
+
+        if (equip.affixes != null && equip.affixes.Length > 0)
+        {
+            txt += "\n--- 詞綴 ---\n";
+            foreach (var affix in equip.affixes)
+            {
+                txt += $"· {affix.name}\n";
+            }
+        }
+
+        return txt;
+    }
+
     void BuildRows()
     {
-        // ★ 修復：空值保護
         if (cellPrefab == null || bagGrid == null) return;
 
-        // 清除舊格子
         foreach (var c in cells)
             if (c != null) Destroy(c);
         cells.Clear();
@@ -60,9 +99,12 @@ public class EquipmentPanelUI : MonoBehaviour
 
             var txt = cell.GetComponentInChildren<Text>();
             if (txt != null)
-                txt.text = bag[i].name;
+            {
+                txt.text = GetShortName(bag[i]);
+                var img = cell.GetComponent<Image>();
+                if (img != null) img.color = bag[i].QualityColor; 
+            }
 
-            // 點擊選中
             int idx = i;
             var btn = cell.GetComponent<Button>();
             if (btn != null)
@@ -72,14 +114,10 @@ public class EquipmentPanelUI : MonoBehaviour
         }
     }
 
-    // ──────────────────────────────────────────────
-    //  選中裝備
-    // ──────────────────────────────────────────────
     void SelectItem(int index)
     {
         var bag = GameSave.Data.bags;
         if (bag == null || index < 0 || index >= bag.Count) return;
-
         selected = bag[index];
         RefreshDetail();
     }
@@ -94,41 +132,30 @@ public class EquipmentPanelUI : MonoBehaviour
             return;
         }
 
-        string txt = $"<b>{selected.name}</b>\n";
-        txt += $"品質：{selected.rarity}\n";
-        txt += $"部位：{selected.slot}\n";
-        txt += $"強化：+{selected.enhanceLevel}\n";
-
-        if (selected.stats != null)
-        {
-            foreach (var s in selected.stats)
-                txt += $"{s.type} +{s.value:F1}\n";
-        }
-
-        detailText.text = txt;
+        detailText.text = DescribeEquipment(selected);
     }
 
-    // ──────────────────────────────────────────────
-    //  按鈕回調（由 GameBootstrapper 綁定）
-    // ──────────────────────────────────────────────
     public void OnEnhance()
     {
         if (selected == null) return;
-        // TODO: 強化邏輯
+        Debug.Log("強化：" + GetEquipName(selected));
         RefreshDetail();
     }
 
     public void OnReforge()
     {
         if (selected == null) return;
-        // TODO: 洗鍊邏輯
+        Debug.Log("洗鍊：" + GetEquipName(selected));
+        selected.seed = Random.Range(0, 999999); 
+        selected.RegenerateAffixes();
+        BuildRows();
         RefreshDetail();
     }
 
     public void OnUpgradeQuality()
     {
         if (selected == null) return;
-        // TODO: 升階邏輯
+        Debug.Log("升階：" + GetEquipName(selected));
         RefreshDetail();
     }
 
@@ -140,10 +167,19 @@ public class EquipmentPanelUI : MonoBehaviour
         RefreshDetail();
     }
 
+    // ★ 修復：分解裝備
     public void OnDecompose()
     {
         if (selected == null) return;
-        InventorySystem.Remove(selected);
+        
+        // 獲取該裝備在背包列表中的索引 (int)
+        int index = GameSave.Data.bags.IndexOf(selected);
+        if (index >= 0)
+        {
+            // 將索引傳給 Remove 方法
+            InventorySystem.Remove(index);
+        }
+        
         selected = null;
         BuildRows();
         RefreshDetail();
