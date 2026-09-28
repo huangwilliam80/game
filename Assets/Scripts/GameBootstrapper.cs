@@ -227,6 +227,32 @@ public class GameBootstrapper : MonoBehaviour
         Place(waveBanner, new Vector2(0, 0.9f), new Vector2(1, 1f), Vector2.zero, Vector2.zero);
         wv.waveBanner = waveBanner;
 
+        // ==== 掛機小怪層（DormBattleView）：與 RunController 的即時戰鬥互不干擾 ====
+        // ★ 修復：這個元件從未被 AddComponent → 掛機時上半部完全沒有「鬼來襲」的視覺節拍。
+        var dormGo = CreatePanel("DormLayer", worldViewGO.transform, new Color(0, 0, 0, 0),
+            new Vector2(0.03f, 0.20f), new Vector2(0.55f, 0.42f), Vector2.zero, Vector2.zero);
+        if (dormGo != null)
+        {
+            var dv = dormGo.AddComponent<DormBattleView>();
+            dv.stageArea = dormGo.rt();
+            // 6 個床鋪位（依 bedCount 顯示；未解鎖的床直接隱藏）
+            for (int i = 0; i < 6; i++)
+            {
+                var bed = CreateImage($"Bed{i}", dormGo.transform, new Color(.25f, .35f, .5f));
+                if (bed != null) SetCenter(bed.rt(), new Vector2(0.08f + i * 0.17f, 0.25f), new Vector2(90, 46));
+                if (bed != null) dv.bedSlots.Add(bed.rt());
+            }
+            // 小鬼模板（池化：只 Instantiate 一次模板，之後重複使用）
+            var ghostTpl = CreateImage("GhostTpl", dormGo.transform, new Color(.75f, .45f, .95f));
+            if (ghostTpl != null)
+            {
+                ghostTpl.rt().sizeDelta = new Vector2(70, 70);
+                ghostTpl.gameObject.AddComponent<CanvasGroup>();
+                ghostTpl.gameObject.SetActive(false);
+                dv.ghostPrefab = ghostTpl.gameObject;
+            }
+        }
+
         // 快速進入秘境的浮動按鈕（UX：一眼看到「現在能做什麼」）
         var quickRunBtn = CreateButton("⚔ 靈玉秘境", worldViewGO.transform, new Color(.55f, .28f, .65f));
         if (quickRunBtn != null) SetRect(quickRunBtn.rt(), new Vector2(.62f, .02f), new Vector2(.98f, .12f), Vector2.zero, Vector2.zero);
@@ -788,5 +814,36 @@ public class GameBootstrapper : MonoBehaviour
         var px = new Color[16]; for (int i = 0; i < 16; i++) px[i] = Color.white;
         t.SetPixels(px); t.Apply();
         return Sprite.Create(t, new Rect(0, 0, 4, 4), new Vector2(.5f, .5f));
+    }
+
+    // ================= 面板分頁工具（★ 缺失定義補齊：原本 BuildUI 呼叫了卻沒實作 → CS0103 編譯不過）=================
+
+    /// <summary>
+    /// 建立一個「分頁層級」容器：透明底、不吃點擊、可帶圓角風格的背景由 AddPanelBg 另外疊。
+    /// 回傳 GameObject（已附 RectTransform），失敗回傳 null 並由呼叫端防呆。
+    /// </summary>
+    static GameObject CreateLayer(string name, Transform parent, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax)
+    {
+        if (parent == null) { Debug.LogWarning("[BuildUI] 遺漏父節點：Layer " + name); return null; }
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.sprite = I != null ? I.whiteSq : null;
+        img.color = new Color(0, 0, 0, 0);      // 容器本身透明
+        img.raycastTarget = false;              // ★ 空檔不要擋住下層按鈕
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = oMin; rt.offsetMax = oMax;
+        return go;
+    }
+
+    /// <summary>幫分頁補一層不透明底色（放在最底層，避免蓋住子元素）。</summary>
+    static void AddPanelBg(GameObject panel, Color col)
+    {
+        if (panel == null) return;
+        var bg = CreatePanel("PanelBg", panel.transform, col, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        if (bg == null) return;
+        var img = bg.GetComponent<Image>();
+        if (img != null) { img.sprite = I != null ? I.whiteSq : null; img.raycastTarget = true; }
+        bg.transform.SetAsFirstSibling();       // ★ 底圖必須在第一個 sibling，否則會蓋住內容
     }
 }
