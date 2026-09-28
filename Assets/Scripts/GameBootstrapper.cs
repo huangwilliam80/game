@@ -720,11 +720,13 @@ public class GameBootstrapper : MonoBehaviour
         catch (System.Exception e) { Debug.LogError("[BuildUI] 「" + name + "」組裝失敗：" + e); }
     }
 
-    GameObject CreatePanel(string name, Transform parent, Color col, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax)
+    static GameObject CreatePanel(string name, Transform parent, Color col, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax)
     {
         if (parent == null) { Debug.LogWarning("[BuildUI] 遺漏父節點：" + name); return null; }
         var go = new GameObject(name); go.transform.SetParent(parent, false);
-        var img = go.AddComponent<Image>(); img.sprite = whiteSq; img.color = col;
+        // ★ 修復 CS0120：靜態工具（如 AddPanelBg）也要能呼叫 CreatePanel，
+        //   所以改用單例的 whiteSq；Play 之前 I 必定已就緒。
+        var img = go.AddComponent<Image>(); img.sprite = I != null ? I.whiteSq : null; img.color = col;
         var rt = go.GetComponent<RectTransform>();
         rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = oMin; rt.offsetMax = oMax;
         return go;
