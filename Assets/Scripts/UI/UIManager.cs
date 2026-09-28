@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// UI 總管：面板開關、Toast 飘字、底部導航。
+/// UI 總管：面板開關、Toast 飄字、底部導航。
 /// </summary>
 public class UIManager : MonoBehaviour
 {
@@ -20,18 +20,28 @@ public class UIManager : MonoBehaviour
     public TMP_Text toastText;
     public CanvasGroup toastGroup;
 
-    readonly System.Collections.Generic.Dictionary<string, GameObject> dic = new Dictionary<string, GameObject>();
+    readonly Dictionary<string, GameObject> dic = new Dictionary<string, GameObject>();
 
     void Awake()
     {
         I = this;
+        // ★★★ 修復：AddComponent 會「立刻」觸發 Awake，
+        // 此時 GameBootstrapper 還沒賦值 panelNames / panels（是 null），
+        // 直接讀取會崩潰並中斷整個 UI 生成（底部導航列因此消失）。
+        // 改成：有值才初始化；沒值則等 GameBootstrapper 賦值後手動呼叫 InitPanels()。★★★
+        if (panelNames == null || panels == null) return;
+        InitPanels();
+    }
+
+    /// <summary>建立面板字典並預設顯示 Main（由 GameBootstrapper 在賦值後呼叫）。</summary>
+    public void InitPanels()
+    {
+        dic.Clear();
+        if (panelNames == null || panels == null) return;
         for (int i = 0; i < panelNames.Length && i < panels.Length; i++)
             dic[panelNames[i]] = panels[i];
         CloseAll("Main");
     }
-
-    void OnEnable() => GameEvents.OnToast += ShowToast;
-    void OnDisable() => GameEvents.OnToast -= ShowToast;
 
     public void Open(string name)
     {
@@ -41,26 +51,5 @@ public class UIManager : MonoBehaviour
     public void CloseAll(string keep = null)
     {
         foreach (var kv in dic) kv.Value.SetActive(kv.Key == keep);
-    }
-
-    Coroutine toastCo;
-    void ShowToast(string msg)
-    {
-        if (!toastText) return;
-        toastText.text = msg;
-        if (toastCo != null) StopCoroutine(toastCo);
-        toastCo = StartCoroutine(ToastAnim());
-    }
-
-    IEnumerator ToastAnim()
-    {
-        float t = 0;
-        while (t < 2.4f)
-        {
-            t += Time.unscaledDeltaTime;
-            if (toastGroup) toastGroup.alpha = t < .2f ? t / .2f : t > 1.9f ? (2.4f - t) / .5f : 1f;
-            yield return null;
-        }
-        if (toastGroup) toastGroup.alpha = 0;
     }
 }
