@@ -75,7 +75,6 @@
     <Compile Include="Assets\Scripts\Combat\RunViewUI.cs" />
     <Compile Include="Assets\Scripts\Combat\BattleSimulator.cs" />
     <Compile Include="Assets\Scripts\UI\ForgePanelUI.cs" />
-    <Compile Include="Assets\Scripts\UI\EquipDisplayUtil.cs" />
     <Compile Include="Assets\Scripts\UI\TopBarUI.cs" />
     <Compile Include="Assets\Scripts\UI\UIManager.cs" />
     <Compile Include="Assets\Scripts\Combat\BattleResult.cs" />
