@@ -3,29 +3,34 @@ using UnityEngine;
 
 /// <summary>
 /// 全站共用的數值公式。集中管理方便調參（平衡性只需改這裡）。
+/// 檔案名稱通常為 MathHelpers.cs
 /// </summary>
 public static class GameMath
 {
-    static readonly System.Random rng = new((int)DateTime.Now.Ticks);
+    // 使用固定的種子或時間種子，這裡使用時間種子確保每次隨機不同
+    static readonly System.Random rng = new System.Random((int)DateTime.Now.Ticks);
 
-    public static int RandInt(int min, int maxInclusive) =>
+    public static int RandInt(int min, int maxInclusive) => 
         maxInclusive <= min ? min : rng.Next(min, maxInclusive + 1);
 
-    public static float RandFloat(float min, float max) => (float)(rng.NextDouble() * (max - min) + min);
+    public static float RandFloat(float min, float max) => 
+        (float)(rng.NextDouble() * (max - min) + min);
 
     public static bool Chance(float p) => rng.NextDouble() < p;
 
     /// <summary>加權隨機：weights 與 items 等長。</summary>
     public static T WeightedPick<T>(T[] items, float[] weights)
     {
-        float total = 0; foreach (var w in weights) total += w;
+        float total = 0; 
+        foreach (var w in weights) total += w;
+        
         float r = (float)rng.NextDouble() * total;
         for (int i = 0; i < items.Length; i++)
         {
             r -= weights[i];
             if (r <= 0) return items[i];
         }
-        return items[^1];
+        return items[items.Length - 1];
     }
 
     /// <summary>升級所需經驗：二次曲線，後期拉長養成曲線。</summary>
@@ -49,11 +54,14 @@ public static class GameMath
     public static int ReforgeCost(int quality) => (int)(400 * Mathf.Pow(1.9f, quality));
 
     /// <summary>戰力估算（顯示用，非戰鬥判定）。</summary>
-    public static long EstimatePower(in StatBlock s) =>
-        (long)(s.atk * 6 + s.def * 4 + s.hp * 0.25f + s.critRate * 900 + s.speed * 40 + s.special * 30);
+    public static long EstimatePower(float atk, float def, float hp, float crit, float speed, float special) =>
+        (long)(atk * 6 + def * 4 + hp * 0.25f + crit * 900 + speed * 40 + special * 30);
 }
 
-/// <summary>掛機產率公式（離線 / 在線共用同一套 → 行為一致、可預測）。</summary>
+/// <summary>
+/// 掛機產率公式（離線 / 在線共用同一套 → 行為一致、可預測）。
+/// 與 GameMath 放在同一個檔案中，方便管理數值。
+/// </summary>
 public static class IdleFormula
 {
     public static void IdleRate(out long goldPerSec, out long expPerSec, int maxStage, int heroLevel)

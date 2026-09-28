@@ -1,8 +1,7 @@
 using System;
+using System.Collections.Generic;
+using UnityEngine;
 
-/// <summary>
-/// 全域事件中心（無縫耦合的 UI ↔ 邏輯通訊）。
-/// </summary>
 public static class GameEvents
 {
     public static event Action<CurrencyType, long> OnCurrencyChanged;
@@ -14,10 +13,6 @@ public static class GameEvents
     public static event Action<bool, BattleResult> OnBattleEnd;
     public static event Action OnStageChanged;
     public static event Action<string> OnToast;
-    
-    // ★ Roguelite 秘境事件
-    public static event Action OnRunStart;
-    public static event Action<bool, BattleResult> OnRunEnd;  // 保持这个签名
 
     public static void RaiseCurrency(CurrencyType c, long amount) => OnCurrencyChanged?.Invoke(c, amount);
     public static void RaiseIdleIncome(long gold, long exp) => OnIdleIncome?.Invoke(gold, exp);
@@ -28,7 +23,16 @@ public static class GameEvents
     public static void RaiseBattleEnd(bool win, BattleResult r) => OnBattleEnd?.Invoke(win, r);
     public static void RaiseStage() => OnStageChanged?.Invoke();
     public static void Toast(string msg) => OnToast?.Invoke(msg);
-    
-    public static void RaiseRunStart() => OnRunStart?.Invoke();
-    public static void RaiseRunEnd(bool win, BattleResult r) => OnRunEnd?.Invoke(win, r);
+}
+
+public enum CurrencyType { Gold, Exp, SpiritCrystal, ForgeShard }
+
+public class BattleResult
+{
+    public int stageId;
+    public int waveReached;
+    public float duration;
+    public List<EquipmentInstance> loot = new List<EquipmentInstance>();
+    public long goldReward;
+    public long expReward;
 }
