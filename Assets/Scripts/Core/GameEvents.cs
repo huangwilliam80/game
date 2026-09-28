@@ -38,19 +38,7 @@ public static class GameEvents
     public static void RaiseWaveCleared(int nextWave) => OnWaveCleared?.Invoke(nextWave);
 }
 
-public enum CurrencyType { Gold, Exp, SpiritCrystal, ForgeShard }
-
-public class BattleResult
-{
-    public int stageId;
-    public int waveReached;
-    public float duration;
-    public List<EquipmentInstance> loot = new List<EquipmentInstance>();
-    public long goldReward;
-    public long expReward;
-}
-
-// ==== 新增 RunBuffChoice 類別 ====
+// ==== 新增 RunBuffChoice 類別 (這個專案裡沒有，所以保留在這裡) ====
 public class RunBuffChoice {
     public RogueBuffDef[] options = new RogueBuffDef[3];
 }
