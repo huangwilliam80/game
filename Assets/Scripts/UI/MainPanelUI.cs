@@ -12,6 +12,7 @@ public class MainPanelUI : MonoBehaviour
     public TMP_Text goalLabel;        // 下一個目標
     public TMP_Text offlineBanner;    // 離線收益橫幅
     public Button claimBtn, forgeBtn, stageBtn;
+    public Button dungeonBtn;           // ★ 靈玉秘境（Roguelite 即時戰鬥）入口
 
     void OnEnable()
     {
@@ -20,6 +21,10 @@ public class MainPanelUI : MonoBehaviour
         if (claimBtn) claimBtn.onClick.AddListener(OnClaim);
         if (forgeBtn) forgeBtn.onClick.AddListener(() => UIManager.I.Open("Forge"));
         if (stageBtn) stageBtn.onClick.AddListener(() => UIManager.I.Open("Stages"));
+        if (dungeonBtn) dungeonBtn.onClick.AddListener(OnDungeon);
+        GameEvents.OnRunStart += OnRunStateChanged;
+        GameEvents.OnRunEnd += OnRunStateChanged;
+        OnRunStateChanged();
         ShowOfflineGreeting();
         RefreshGoal();
     }
@@ -27,6 +32,20 @@ public class MainPanelUI : MonoBehaviour
     {
         GameEvents.OnHeroChanged -= RefreshGoal;
         GameEvents.OnStageChanged -= RefreshGoal;
+        GameEvents.OnRunStart -= OnRunStateChanged;
+        GameEvents.OnRunEnd -= OnRunStateChanged;
+    }
+
+    void OnRunStateChanged()
+    {
+        bool busy = RunController.I != null && RunController.I.IsRunning;
+        if (dungeonBtn) dungeonBtn.interactable = !busy;
+    }
+
+    void OnDungeon()
+    {
+        if (RunController.I == null) { GameEvents.Toast("秘境系統未就緒"); return; }
+        RunController.I.StartRun(Mathf.Max(1, GameSave.Data.currentStage));
     }
 
     /// <summary>開場若有離線時間，先播「歡迎回來」橫幅（先給甜頭再談操作）。</summary>
