@@ -9,7 +9,7 @@ using UnityEngine.UI;
 public class CharacterPanelUI : MonoBehaviour
 {
     [Header("UI References (Assigned by GameBootstrapper)")]
-    public TextMeshProUGUI statText;
+    public TMP_Text statText;
     public Transform gongfaRow;
     public Button[] upgradeButtons;
 

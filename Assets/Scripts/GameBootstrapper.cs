@@ -116,6 +116,7 @@ public class GameBootstrapper : MonoBehaviour
 
     Canvas canvas;
     RectTransform rootRT;
+    UIManager um;                 // ★ 修復 CS0103：Toast／導航在另一個 Step 段落裡，必須用欄位共用
 
     void BuildUI()
     {
@@ -159,13 +160,15 @@ public class GameBootstrapper : MonoBehaviour
         // ---- 中間容器(TopBar 與 NavBar 之間) ----
         var middle = CreatePanel("Middle", rootRT, new Color(0, 0, 0, 0),
             Vector2.zero, Vector2.one, new Vector2(0, 170f), new Vector2(0, -140f));
+        if (middle != null) { var mi = middle.GetComponent<Image>(); if (mi) mi.raycastTarget = false; }
         // ★ 注意：這裡不能 Stretch()，否則會把上面 170/-140 的邊距清零，TopBar/NavBar 與面板重疊
 
         Step("上半部:WorldView", () =>
         {
         // ==== 上半部:WorldView(永遠顯示的戰鬥演出) ====
-        var worldViewGO = CreatePanel("WorldView", middle.transform, new Color(0.05f, 0.08f, 0.12f),
+        var worldViewGO = CreatePanel("WorldView", middle != null ? middle.transform : rootRT, new Color(0.05f, 0.08f, 0.12f),
             new Vector2(0, 0.45f), Vector2.one, Vector2.zero, Vector2.zero);
+        if (worldViewGO == null) return;
         // ★ 修復 NullReferenceException：CreatePanel 已用 aMin/aMax 排好位置，
         //   這裡若再 Stretch() 會被「錨點歸零 + offset 歸零」壓成 0x0，
         //   之後 Instantiate(dmgTpl, worldArea) 與所有子節點都會得到非法矩形 → 空參考連鎖。
@@ -174,12 +177,12 @@ public class GameBootstrapper : MonoBehaviour
 
         // 主角
         var heroImg = CreateImage("Hero", worldViewGO.transform, new Color(0.3f, 0.7f, 1f));
-        SetCenter(heroImg.rt(), new Vector2(0.25f, 0.52f), new Vector2(170, 230));
+        if (heroImg != null) SetCenter(heroImg.rt(), new Vector2(0.25f, 0.52f), new Vector2(170, 230));
         wv.heroImage = heroImg;
 
         // 主角血條
         var heroBarBg = CreateImage("HeroHpBarBg", worldViewGO.transform, new Color(0.2f, 0.2f, 0.2f));
-        SetCenter(heroBarBg.rt(), new Vector2(0.25f, 0.16f), new Vector2(180, 18));
+        if (heroBarBg != null) SetCenter(heroBarBg.rt(), new Vector2(0.25f, 0.16f), new Vector2(180, 18));
         var heroFill = CreateImage("HeroHpFill", heroBarBg.transform, new Color(0.2f, 0.9f, 0.3f));
         var hf = heroFill != null ? heroFill.GetComponent<Image>() : null;
         if (hf) { hf.type = Image.Type.Filled; hf.fillMethod = Image.FillMethod.Horizontal; hf.fillAmount = 1f; }
@@ -191,21 +194,21 @@ public class GameBootstrapper : MonoBehaviour
         // 敵人錨點 + 模板
         var enemyAnchor = CreatePanel("EnemyAnchor", worldViewGO.transform, new Color(0, 0, 0, 0),
             new Vector2(0.62f, 0.35f), new Vector2(0.9f, 0.8f), Vector2.zero, Vector2.zero);
-        wv.enemyAnchor = enemyAnchor.rt();
+        wv.enemyAnchor = enemyAnchor != null ? enemyAnchor.rt() : null;
         var enemyTpl = CreateImage("EnemyTpl", enemyAnchor.transform, new Color(0.9f, 0.3f, 0.3f));
         if (enemyTpl != null) enemyTpl.rt().sizeDelta = new Vector2(160, 200);
         if (enemyTpl != null) { enemyTpl.gameObject.SetActive(false); wv.enemyPrefab = enemyTpl.gameObject; }
 
         // 敵人血條 + 名稱
         var eBarBg = CreateImage("EnemyHpBarBg", worldViewGO.transform, new Color(0.2f, 0.2f, 0.2f));
-        SetCenter(eBarBg.rt(), new Vector2(0.76f, 0.16f), new Vector2(180, 18));
+        if (eBarBg != null) SetCenter(eBarBg.rt(), new Vector2(0.76f, 0.16f), new Vector2(180, 18));
         var eFill = CreateImage("EnemyHpFill", eBarBg.transform, new Color(0.9f, 0.3f, 0.3f));
         var ef = eFill != null ? eFill.GetComponent<Image>() : null;
         if (ef) { ef.type = Image.Type.Filled; ef.fillMethod = Image.FillMethod.Horizontal; ef.fillAmount = 1f; }
         if (eFill != null) Stretch(eFill.rt());
         wv.enemyHpFill = ef;
         wv.enemyNameText = CreateText("EnemyName", worldViewGO.transform, 22, Color.white, TextAnchor.MiddleCenter);
-        SetCenter(wv.enemyNameText.rt(), new Vector2(0.76f, 0.86f), new Vector2(200, 40));
+        if (wv.enemyNameText != null) SetCenter(((Component)wv.enemyNameText).rt(), new Vector2(0.76f, 0.86f), new Vector2(200, 40));
         wv.enemyHpText = CreateText("EnemyHpTxt", eBarBg.transform, 20, Color.white, TextAnchor.MiddleCenter);
         if (wv.enemyHpText != null) Stretch(wv.enemyHpText.rt());
 
@@ -244,14 +247,23 @@ public class GameBootstrapper : MonoBehaviour
         Step("下半部:Dock+面板", () =>
         {
         // ==== 下半部:Dock(面板切換區) ====
-        var dock = CreatePanel("Dock", middle.transform, new Color(0.11f, 0.12f, 0.18f),
+        var dock = CreatePanel("Dock", middle != null ? middle.transform : rootRT, new Color(0.11f, 0.12f, 0.18f),
             Vector2.zero, new Vector2(1, 0.45f), Vector2.zero, Vector2.zero);
+        if (dock == null) return;
         // ★ 同 WorldView：不可再 Stretch()，否則會把 0~0.45 的錨點清掉、與上半部重疊
         var content = dock.rt();
+        if (content == null) return;
 
         // === 面板 1:Main ===
-        var main = CreatePanel("P_Main", content, new Color(0, 0, 0, 0), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(main.rt());
+        // ★★ 關鍵修復：五個分頁面板必須是「rootRT 下彼此獨立、同範圍」的節點。
+        //    之前掛在 Dock 裡並用 Stretch() 把 Dock 撐滿 → 面板與 Dock 底圖／其他面板重疊，
+        //    結果就是「按鈕看不到、點了沒反應」。現在統一：parent = rootRT，
+        //    範圍 = 頂欄下方 ~ 導航列上方（offset 0,170 / 0,-140）。
+        // 分頁統一範圍：頂欄下方 170px ~ 導航列上方 140px
+        Vector2 pOffMin = new Vector2(0, 170f), pOffMax = new Vector2(0, -140f);
+        var main = CreateLayer("P_Main", rootRT, Vector2.zero, Vector2.one, pOffMin, pOffMax);
+        if (main == null) { Debug.LogWarning("[BuildUI] 面板建立失敗：P_Main"); return; }
+        AddPanelBg(main, new Color(.10f, .11f, .16f, .98f));
         var mp = main.AddComponent<MainPanelUI>();
         // 排版：上半=离线横幅 → 下一目标；下半=三顆行動按鈕（大按钮、拇指可及）
         mp.offlineBanner = CreateText("Offline", main.transform, 30, new Color(1f, .9f, .5f), TextAnchor.MiddleCenter);
@@ -260,6 +272,7 @@ public class GameBootstrapper : MonoBehaviour
         Place(mp.goalLabel, new Vector2(.05f, .46f), new Vector2(.95f, .74f), Vector2.zero, Vector2.zero);
         mp.dungeonBtn = CreateButton("⚔ 靈玉秘境（即時戰鬥）", main.transform, new Color(.55f, .28f, .65f));
         Place(mp.dungeonBtn, new Vector2(.06f, .30f), new Vector2(.94f, .43f), Vector2.zero, Vector2.zero);
+        if (mp.dungeonBtn) mp.dungeonBtn.onClick.AddListener(() => RunController.I?.StartRun(Mathf.Max(1, GameSave.Data.currentStage)));
         mp.claimBtn = CreateButton("領取離線收益", main.transform, new Color(.2f, .5f, .3f));
         Place(mp.claimBtn, new Vector2(.06f, .14f), new Vector2(.48f, .27f), Vector2.zero, Vector2.zero);
         mp.stageBtn = CreateButton("關卡掃蕩", main.transform, new Color(.6f, .4f, .15f));
@@ -271,23 +284,30 @@ public class GameBootstrapper : MonoBehaviour
         if (mp.forgeBtn) mp.forgeBtn.onClick.AddListener(() => UIManager.I?.Open("Equip"));
 
         // === 面板 2:Equip ===
-        var equip = CreatePanel("P_Equip", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(equip.rt());
+        var equip = CreateLayer("P_Equip", rootRT, Vector2.zero, Vector2.one, pOffMin, pOffMax);
+        if (equip == null) { Debug.LogWarning("[BuildUI] 面板建立失敗：P_Equip"); return; }
+        AddPanelBg(equip, new Color(.11f, .12f, .18f, .98f));
         var ep = equip.AddComponent<EquipmentPanelUI>();
         var slotRow = CreateGrid("SlotRow", equip.transform, 3, new Vector2(.03f, .72f), new Vector2(.97f, .97f));
-        ep.equipRow = slotRow.transform;
-        for (int i = 0; i < 6; i++)
+        if (slotRow != null)
         {
-            var b = CreateButton($"槽位{i}", slotRow.transform, new Color(.2f, .22f, .3f));
-            int si = i;
-            if (b) b.onClick.AddListener(() => InventorySystem.SmartEquipBest((EquipSlot)si));
+            ep.equipRow = slotRow.transform;
+            string[] slotNames = { "武器", "頭部", "衣服", "飾品", "法器", "鞋子" };
+            for (int i = 0; i < 6; i++)
+            {
+                var b = CreateButton(slotNames[i], slotRow.transform, new Color(.2f, .22f, .3f));
+                int si = i;
+                if (b) b.onClick.AddListener(() => InventorySystem.SmartEquipBest((EquipSlot)si));
+            }
         }
         var bagGrid = CreateGrid("BagGrid", equip.transform, 4, new Vector2(.03f, .30f), new Vector2(.97f, .70f));
-        ep.bagGrid = bagGrid.transform;
-        var cellTpl = CreateButton("CellTpl", bagGrid.transform, Color.white);
-        cellTpl.name = "cellPrefab";
-        ep.cellPrefab = cellTpl != null ? cellTpl.gameObject : null;
-        if (cellTpl != null) cellTpl.gameObject.SetActive(false);
+        if (bagGrid != null)
+        {
+            ep.bagGrid = bagGrid.transform;
+            var cellTpl = CreateButton("CellTpl", bagGrid.transform, Color.white);
+            ep.cellPrefab = cellTpl != null ? cellTpl.gameObject : null;
+            if (cellTpl != null) cellTpl.gameObject.SetActive(false);
+        }
         ep.detailText = CreateText("Detail", equip.transform, 26, Color.white, TextAnchor.UpperLeft);
         Place(ep.detailText, new Vector2(.03f, .08f), new Vector2(.62f, .29f), Vector2.zero, Vector2.zero);
         string[] ops = { "強化", "洗鍊", "升階", "穿戴", "分解", "一鍵清理" };
@@ -308,26 +328,34 @@ public class GameBootstrapper : MonoBehaviour
         }
 
         // === 面板 3:Character ===
-        var cha = CreatePanel("P_Char", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(cha.rt());
+        var cha = CreateLayer("P_Char", rootRT, Vector2.zero, Vector2.one, pOffMin, pOffMax);
+        if (cha == null) { Debug.LogWarning("[BuildUI] 面板建立失敗：P_Char"); return; }
+        AddPanelBg(cha, new Color(.11f, .12f, .18f, .98f));
         var cp = cha.AddComponent<CharacterPanelUI>();
         cp.statText = CreateText("Stats", cha.transform, 30, Color.white, TextAnchor.UpperCenter);
         Place(cp.statText, new Vector2(.05f, .72f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
         var gfGrid = CreateGrid("Gongfa", cha.transform, 2, new Vector2(.03f, .06f), new Vector2(.97f, .70f));
-        cp.gongfaRow = gfGrid.transform;
-        cp.upgradeButtons = new Button[8];
-        for (int i = 0; i < 8; i++) cp.upgradeButtons[i] = CreateButton("升級", gfGrid.transform, new Color(.3f, .35f, .5f));
+        if (gfGrid != null)
+        {
+            cp.gongfaRow = gfGrid.transform;
+            cp.upgradeButtons = new Button[8];
+            for (int i = 0; i < 8; i++) cp.upgradeButtons[i] = CreateButton("升級", gfGrid.transform, new Color(.3f, .35f, .5f));
+        }
 
         // === 面板 4:Stages ===
-        var stg = CreatePanel("P_Stages", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(stg.rt());
+        var stg = CreateLayer("P_Stages", rootRT, Vector2.zero, Vector2.one, pOffMin, pOffMax);
+        if (stg == null) { Debug.LogWarning("[BuildUI] 面板建立失敗：P_Stages"); return; }
+        AddPanelBg(stg, new Color(.11f, .12f, .18f, .98f));
         var sp = stg.AddComponent<StagePanelUI>();
         CreateScrollList("StageList", stg.transform, out var listContent,
             new Vector2(.03f, .34f), new Vector2(.97f, .97f));
-        sp.listParent = listContent;
-        var itemTpl = CreateButton("第 X 夜", listContent, Color.gray);
-        sp.itemPrefab = itemTpl != null ? itemTpl.gameObject : null;
-        if (itemTpl != null) itemTpl.gameObject.SetActive(false);
+        if (listContent != null)
+        {
+            sp.listParent = listContent;
+            var itemTpl = CreateButton("第 X 夜", listContent, Color.gray);
+            sp.itemPrefab = itemTpl != null ? itemTpl.gameObject : null;
+            if (itemTpl != null) itemTpl.gameObject.SetActive(false);
+        }
         sp.resultText = CreateText("Result", stg.transform, 26, Color.white, TextAnchor.UpperLeft);
         Place(sp.resultText, new Vector2(.05f, .04f), new Vector2(.55f, .26f), Vector2.zero, Vector2.zero);
 
@@ -335,27 +363,28 @@ public class GameBootstrapper : MonoBehaviour
         sp.runHint = CreateText("RunHint", stg.transform, 22, new Color(.9f, .88f, .75f), TextAnchor.UpperLeft);
         Place(sp.runHint, new Vector2(.57f, .04f), new Vector2(.98f, .26f), Vector2.zero, Vector2.zero);
         var runB = CreateButton("進入靈玉秘境（即時戰鬥）", stg.transform, new Color(.62f, .3f, .7f));
-        SetRect(runB.rt(), new Vector2(.57f, .27f), new Vector2(.98f, .33f), Vector2.zero, Vector2.zero);
+        if (runB != null) SetRect(runB.rt(), new Vector2(.57f, .27f), new Vector2(.98f, .33f), Vector2.zero, Vector2.zero);
         var runT = runB != null ? runB.GetComponentInChildren<TMP_Text>() : null;
         if (runT) runT.fontSize = 22;
         sp.runBtn = runB;
 
         // === 面板 5:Forge ===
-        var forge = CreatePanel("P_Forge", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(forge.rt());
+        var forge = CreateLayer("P_Forge", rootRT, Vector2.zero, Vector2.one, pOffMin, pOffMax);
+        if (forge == null) { Debug.LogWarning("[BuildUI] 面板建立失敗：P_Forge"); return; }
+        AddPanelBg(forge, new Color(.11f, .12f, .18f, .98f));
         var fp = forge.AddComponent<ForgePanelUI>();
         fp.slotButtons = new Button[6];
         var fRow = CreateGrid("Slots", forge.transform, 3, new Vector2(.05f, .6f), new Vector2(.95f, .92f));
         string[] names = { "武器", "頭部", "衣服", "飾品", "法器", "鞋子" };
-        for (int i = 0; i < 6; i++) fp.slotButtons[i] = CreateButton(names[i], fRow.transform, new Color(.25f, .28f, .4f));
+        if (fRow != null)
+            for (int i = 0; i < 6; i++) fp.slotButtons[i] = CreateButton(names[i], fRow.transform, new Color(.25f, .28f, .4f));
         fp.infoText = CreateText("Info", forge.transform, 30, Color.white, TextAnchor.MiddleCenter);
         Place(fp.infoText, new Vector2(.05f, .35f), new Vector2(.95f, .58f), Vector2.zero, Vector2.zero);
         var doBtn = CreateButton("開始鍛造", forge.transform, new Color(.6f, .35f, .15f));
-        SetRect(doBtn.rt(), new Vector2(.2f, .15f), new Vector2(.8f, .3f), Vector2.zero, Vector2.zero);
-        if (doBtn) doBtn.onClick.AddListener(fp.DoForge);
+        if (doBtn != null) { SetRect(doBtn.rt(), new Vector2(.2f, .15f), new Vector2(.8f, .3f), Vector2.zero, Vector2.zero); doBtn.onClick.AddListener(fp.DoForge); }
 
         // ---- UIManager 綁定 Dock 內的面板 ----
-        var um = dock.AddComponent<UIManager>();
+        um = dock.AddComponent<UIManager>();
         um.panelNames = new[] { "Main", "Equip", "Character", "Stages", "Forge" };
         um.panels = new[] { main, equip, cha, stg, forge };
         um.InitPanels();
@@ -366,6 +395,7 @@ public class GameBootstrapper : MonoBehaviour
         // ==== 全局遮罩 1:ChoiceOverlay(三選一) ====
         var choiceGo = CreatePanel("ChoiceOverlay", rootRT, new Color(0, 0, 0, 0.6f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        if (choiceGo == null) return;
         var choiceCG = choiceGo.AddComponent<CanvasGroup>();
         choiceCG.alpha = 0; choiceCG.blocksRaycasts = false;
         Stretch(choiceGo.rt());
@@ -395,6 +425,7 @@ public class GameBootstrapper : MonoBehaviour
         // ==== 全局遮罩 2:RunResult(結算) ====
         var resultGo = CreatePanel("RunResult", rootRT, new Color(0, 0, 0, 0.75f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        if (resultGo == null) return;
         var resCG = resultGo.AddComponent<CanvasGroup>();
         resCG.alpha = 0; resCG.blocksRaycasts = false;
         Stretch(resultGo.rt());
@@ -425,7 +456,7 @@ public class GameBootstrapper : MonoBehaviour
         rr.lootRowPrefab = rowTpl;
 
         var confBtn = CreateButton("確認並結算", resultGo.transform, new Color(0.2f, 0.6f, 0.3f));
-        SetRect(confBtn.rt(), new Vector2(0.3f, 0.02f), new Vector2(0.7f, 0.13f), Vector2.zero, Vector2.zero);
+        if (confBtn != null) SetRect(confBtn.rt(), new Vector2(0.3f, 0.02f), new Vector2(0.7f, 0.13f), Vector2.zero, Vector2.zero);
         rr.confirmBtn = confBtn;
         });
 
@@ -435,13 +466,14 @@ public class GameBootstrapper : MonoBehaviour
         var toastGO = new GameObject("Toast"); toastGO.transform.SetParent(rootRT, false);
         var toastGroup = toastGO.AddComponent<CanvasGroup>();
         toastGroup.alpha = 0; toastGroup.blocksRaycasts = false;
-        var uiToast = CreateText("ToastTxt", toastGO.transform, 34, Color.white, TextAnchor.MiddleCenter);
         var tbg = toastGO.AddComponent<Image>(); tbg.color = new Color(0, 0, 0, .7f);
+        tbg.raycastTarget = false;           // ★ 重要：Toast 是「提示」，绝不能挡住下面的点击
         var trt = toastGO.GetComponent<RectTransform>();
         trt.anchorMin = new Vector2(.1f, .55f); trt.anchorMax = new Vector2(.9f, .65f);
         trt.offsetMin = trt.offsetMax = Vector2.zero;
-        Place(uiToast, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        um.BindToast(uiToast, toastGroup);   // ★ Toast 交給 UIManager 統一播放（含淡出）
+        var uiToast = CreateText("ToastTxt", toastGO.transform, 34, Color.white, TextAnchor.MiddleCenter);
+        if (uiToast != null) { uiToast.raycastTarget = false; Place(uiToast, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); }
+        if (um != null) um.BindToast(uiToast, toastGroup);   // ★ Toast 交给 UIManager 统一播放（含淡出）
 
         // ---- 底部導航 ----
         // ★ 修復：底部導航列用「錨點(0,0)-(1,0) + offsetMin(0,0)/offsetMax(0,170)」才有 170 高；
@@ -454,11 +486,12 @@ public class GameBootstrapper : MonoBehaviour
         for (int i = 0; i < 5; i++)
         {
             var b = CreateButton(tabs[i], nav.transform, new Color(.2f, .22f, .3f));
+            if (b == null) continue;
             var rt = b.rt();
             rt.anchorMin = new Vector2(i / 5f + .01f, .1f); rt.anchorMax = new Vector2((i + 1) / 5f - .01f, .9f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             string k = keys[i];
-            if (b) b.onClick.AddListener(() => um.Open(k));
+            b.onClick.AddListener(() => { if (um != null) um.Open(k); });
         }
         });
 
@@ -634,13 +667,24 @@ public class GameBootstrapper : MonoBehaviour
         rt.anchoredPosition = Vector2.zero;
     }
 
-    /// <summary>「建立＋定位」一步完成；t 為 null 時靜默略過（不會把整條 BuildUI 打斷）。</summary>
-    static TMPro.TextMeshProUGUI Place(TMPro.TextMeshProUGUI t, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax)
+    /// <summary>
+    /// 「定位」通用版：文字／按鈕都能用（★ 修復 CS1503：原本只接受 TextMeshProUGUI，
+    /// 但面板欄位宣告的是 TMP_Text、有時傳入的是 Button，型別不符就編譯不過）。
+    /// </summary>
+    static T Place<T>(T t, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax) where T : Component
     {
         if (t == null) return null;
-        var rt = (RectTransform)t.transform;
-        rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = offMin; rt.offsetMax = offMax;
+        var rt = t.transform as RectTransform;
+        if (rt != null) { rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = offMin; rt.offsetMax = offMax; }
         return t;
+    }
+
+    /// <summary>GameObject 版定位（面板／容器常用）。</summary>
+    static GameObject Place(GameObject go, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax)
+    {
+        if (go == null) return null;
+        SetRect(go.transform as RectTransform, aMin, aMax, offMin, offMax);
+        return go;
     }
 
     /// <summary>把一大段 UI 組裝包起來：單段失敗只印錯誤、不影響其他面板（避免半套畫面）。</summary>
@@ -681,6 +725,7 @@ public class GameBootstrapper : MonoBehaviour
         if (TMPro.TMP_Settings.defaultFontAsset == null) t.enabled = false;
         t.fontSize = size; t.color = col; t.alignment = (TextAlignmentOptions)anchor;
         t.text = name; t.overflowMode = TextOverflowModes.Ellipsis;
+        t.raycastTarget = false;      // ★ 純顯示文字不吃點擊，避免擋住按鈕／背包格子
 #if UNITY_2022_3_OR_NEWER || UNITY_6000_0_OR_NEWER
         t.textWrappingMode = TextWrappingModes.Normal;
 #else
@@ -705,6 +750,7 @@ public class GameBootstrapper : MonoBehaviour
     GameObject CreateGrid(string name, Transform parent, int cols, Vector2 aMin, Vector2 aMax)
     {
         var go = CreatePanel(name, parent, new Color(0, 0, 0, 0), aMin, aMax, Vector2.zero, Vector2.zero);
+        if (go == null) return null;
         var g = go.AddComponent<GridLayoutGroup>();
         g.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         g.constraintCount = cols;
@@ -717,12 +763,13 @@ public class GameBootstrapper : MonoBehaviour
     GameObject CreateScrollList(string name, Transform parent, out RectTransform contentRT, Vector2 aMin, Vector2 aMax)
     {
         var sv = CreatePanel(name, parent, new Color(.08f, .08f, .12f, .6f), aMin, aMax, Vector2.zero, Vector2.zero);
+        if (sv == null) { contentRT = null; return null; }
         var scroll = sv.AddComponent<ScrollRect>();
         // ★ 修復：viewport 必須是「獨立且帶遮罩」的節點，否則整塊背景會被裁掉、列表也無法捲動
         var vpGO = CreatePanel("Viewport", sv.transform, new Color(0, 0, 0, 0), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         vpGO.AddComponent<RectMask2D>();
         var c = new GameObject("Content"); c.transform.SetParent(vpGO.transform, false);
-        contentRT = c.GetComponent<RectTransform>();
+        contentRT = c.AddComponent<RectTransform>();   // ★ 手動建的 GameObject 需自己加 RectTransform
         contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
         contentRT.pivot = new Vector2(.5f, 1); contentRT.sizeDelta = new Vector2(0, 120);
         var vlg = c.AddComponent<VerticalLayoutGroup>();
