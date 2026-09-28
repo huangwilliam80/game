@@ -126,6 +126,9 @@ public class EquipmentInstance
 
     public long Power => GameMath.EstimatePower(FinalStats());
 
+    /// <summary>分解／出售可換的金幣（品質越高越值錢，強化也有加成）。</summary>
+    public long SellPrice => (long)(40 * (quality + 1) * (quality + 1) * (1f + plus * 0.25f));
+
     /// <summary>深拷貝（用於合成／展示，避免污染存檔物件）。</summary>
     public EquipmentInstance Clone()
     {

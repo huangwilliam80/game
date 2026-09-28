@@ -45,47 +45,36 @@ public class EquipmentPanelUI : MonoBehaviour
         GameEvents.OnInventoryChanged -= BuildRows;
     }
 
-    // ★ 修復：補上缺失的獲取裝備名稱方法
-    string GetEquipName(EquipmentInstance equip)
+    // 顯示字串統一交给 EquipDisplayUtil（與結算畫面共用一份邏輯）
+    string GetEquipName(EquipmentInstance equip) => EquipDisplayUtil.Name(equip);
+
+    string GetShortName(EquipmentInstance equip) => EquipDisplayUtil.ShortLabel(equip);
+
+    string DescribeEquipment(EquipmentInstance equip) => EquipDisplayUtil.Describe(equip);
+
+    /// <summary>上方 6 個部位按鈕：顯示當前穿戴 + 战力，一眼看出哪個部位拖後腿。</summary>
+    void RefreshEquipRow()
     {
-        if (equip == null) return "未知";
-        var def = EquipmentDatabase.Get(equip.defId);
-        return def != null ? def.name : "未知";
-    }
-
-    string GetShortName(EquipmentInstance equip)
-    {
-        if (equip == null) return "?";
-        return $"{equip.QualityName} {GetEquipName(equip)}\n+{equip.plus}";
-    }
-
-    string DescribeEquipment(EquipmentInstance equip)
-    {
-        if (equip == null) return "(空)";
-        string txt = $"【{equip.QualityName}】{GetEquipName(equip)}\n";
-        txt += $"等級：Lv.{equip.level} 強化：+{equip.plus}\n";
-        txt += $"戰力：{equip.Power}\n\n";
-
-        var stats = equip.FinalStats();
-        txt += "--- 最終屬性 ---\n";
-        if (stats.atk > 0.01f) txt += $"攻擊：{stats.atk:F1}\n";
-        if (stats.def > 0.01f) txt += $"防禦：{stats.def:F1}\n";
-        if (stats.hp > 0.01f) txt += $"生命：{stats.hp:F1}\n";
-        if (stats.critRate > 0.001f) txt += $"暴擊：{stats.critRate:P1}\n";
-        if (stats.speed > 0.01f) txt += $"速度：{stats.speed:F2}\n";
-        if (stats.special > 0.01f) txt += $"特效：{stats.special:F1}\n";
-
-        if (equip.affixes != null && equip.affixes.Length > 0)
+        if (equipRow == null) return;
+        var btns = equipRow.GetComponentsInChildren<Button>(true);
+        string[] slots = { "武器", "頭部", "衣服", "飾品", "法器", "鞋子" };
+        for (int i = 0; i < btns.Length && i < 6; i++)
         {
-            txt += "\n--- 詞綴 ---\n";
-            foreach (var affix in equip.affixes)
-                txt += $"· {affix.name}\n";
+            var eq = GameSave.Data.equipped[i];
+            var t = btns[i].GetComponentInChildren<TMP_Text>();
+            if (t != null)
+            {
+                t.text = eq == null
+                    ? $"{slots[i]}\n<color=#FF9B9B>未穿戴</color>"
+                    : $"{slots[i]}\n{EquipDisplayUtil.Name(eq)}\n<color=#{ColorUtility.ToHtmlStringRGB(eq.QualityColor)}>{eq.QualityName} +{eq.plus}</color>";
+                t.fontSize = 20;
+            }
         }
-        return txt;
     }
 
     public void BuildRows()
     {
+        RefreshEquipRow();
         foreach (var c in cells)
             if (c != null) Destroy(c);
         cells.Clear();
@@ -107,7 +96,10 @@ public class EquipmentPanelUI : MonoBehaviour
             }
 
             var img = cell.GetComponent<Image>();
-            if (img != null) img.color = new Color(0.2f, 0.22f, 0.3f, 0.8f); // 統一背景色
+            if (img != null)
+                img.color = ReferenceEquals(bag[i], selected)
+                    ? new Color(.45f, .55f, .75f, 1f)                 // 選中高亮
+                    : new Color(0.2f, 0.22f, 0.3f, 0.8f);
 
             int idx = i;
             var btn = cell.GetComponent<Button>();

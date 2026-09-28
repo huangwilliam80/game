@@ -84,13 +84,17 @@ public class CharacterPanelUI : MonoBehaviour
             if (btn == null) continue;
 
             int level = (data.gongfaLevel != null && i < data.gongfaLevel.Length) ? data.gongfaLevel[i] : 0;
-            long cost = GetGongfaUpgradeCost(i, level);
+            long cost = CharacterSystem.GongfaUpCost(i);          // ★ 公式只有一份：與 Inventory 端一致
 
             var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
             if (btnText != null)
             {
                 string name = i < gongfaNames.Length ? gongfaNames[i] : $"功法 {i + 1}";
-                btnText.text = $"{name}\nLv.{level}\n費用：{cost:N0}";
+                string effect = i < CharacterSystem.Gongfas.Count ? CharacterSystem.Gongfas[i].desc : "";
+                bool maxed = level >= 20;
+                btnText.text = maxed
+                    ? $"{name}\nLv.{level}（已滿）\n{effect}"
+                    : $"{name}\nLv.{level} → {level + 1}\n<color=#FFD37A>{cost:N0} 金幣</color>\n{effect}";
             }
 
             bool canAfford = data.gold >= cost;
@@ -101,17 +105,12 @@ public class CharacterPanelUI : MonoBehaviour
         }
     }
 
-    private long GetGongfaUpgradeCost(int index, int level)
-    {
-        return (long)(100 * Mathf.Pow(1.5f, level));
-    }
-
     private void OnUpgradeGongfaClicked(int index)
     {
         var data = GameSave.Data;
         if (data.gongfaLevel == null || index >= data.gongfaLevel.Length) return;
 
-        long cost = GetGongfaUpgradeCost(index, data.gongfaLevel[index]);
+        long cost = CharacterSystem.GongfaUpCost(index);
         if (data.gold >= cost)
         {
             data.gold -= cost;

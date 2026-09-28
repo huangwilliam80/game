@@ -15,7 +15,7 @@ public class UIManager : MonoBehaviour
     public string[] panelNames = { "Main", "Equip", "Character", "Stages", "Forge" };
     public GameObject[] panels;
 
-    [Header("Toast")]
+    [Header("Toast（留空則自動使用場景中的 Toast）")]
     public TMP_Text toastText;
     public CanvasGroup toastGroup;
 
@@ -25,6 +25,13 @@ public class UIManager : MonoBehaviour
     {
         I = this;
         if (panelNames != null && panels != null) InitPanels();
+    }
+
+    /// <summary>由 GameBootstrapper 呼叫：把全域 Toast 元件接進來。</summary>
+    public void BindToast(TMP_Text text, CanvasGroup group)
+    {
+        toastText = text;
+        toastGroup = group;
     }
 
     void OnEnable()
