@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;                   // DateTime, Exception
 using System.Diagnostics;       // Process, ProcessStartInfo
 using System.IO;
 using UnityEditor;
