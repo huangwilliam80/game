@@ -111,12 +111,14 @@ public static class EquipmentDatabase
 
         int lvl = Mathf.Max(1, stageDepth / 3 + GameMath.RandInt(0, 2));
 
-        return new EquipmentInstance
+        var inst = new EquipmentInstance
         {
             defId = def.id, quality = q, plus = 0, level = lvl,
             seed = GameMath.RandInt(int.MinValue, int.MaxValue - 1),
             setId = def.setId
-        }.Also(e => e.RegenerateAffixes());
+        };
+        inst.RegenerateAffixes();   // 依種子生成詞綴
+        return inst;
     }
 
     /// <summary>首領掉落：保底稀有以上。</summary>
