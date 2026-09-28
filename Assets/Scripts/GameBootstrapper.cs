@@ -3,20 +3,19 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
 
-/// <summary>
-/// 場景自動搭建器：用純代碼生成整套豎屏 UI，無需手動拖拽。
-/// 修復：
-///   1. AddComponent 前先禁用 GameObject，賦值後再啟用，避免 OnEnable 空引用。
-///   2. CreateScrollList 正確添加 RectTransform。
-/// </summary>
+// ★ 修復：添加擴展方法，讓 GameObject / Component 都能用 .rt() 獲取 RectTransform
+public static class UIExt
+{
+    public static RectTransform rt(this GameObject go) => go.GetComponent<RectTransform>();
+    public static RectTransform rt(this Component c) => c.GetComponent<RectTransform>();
+}
+
 public class GameBootstrapper : MonoBehaviour
 {
     public static GameBootstrapper I { get; private set; }
 
     Sprite whiteSq;
     float autoSave;
-
-    // Toast 提示
     Text uiToast;
     CanvasGroup toastGroup;
 
@@ -37,7 +36,6 @@ public class GameBootstrapper : MonoBehaviour
         foreach (var e in GameSave.Data.equipped) if (e != null) e.RegenerateAffixes();
 
         var (sec, g, e2) = GameSave.SettleOffline();
-
         BuildUI();
 
         if (sec > 60)
@@ -53,9 +51,6 @@ public class GameBootstrapper : MonoBehaviour
     void OnApplicationPause(bool p) { if (p) GameSave.Save(); }
     void OnApplicationQuit() => GameSave.Save();
 
-    // ══════════════════════════════════════════════
-    //  UI 生成
-    // ══════════════════════════════════════════════
     Canvas canvas;
     RectTransform rootRT;
 
@@ -78,15 +73,16 @@ public class GameBootstrapper : MonoBehaviour
 
         // ---- 背景 ----
         var bg = CreateImage("BG", rootRT, new Color(.09f, .10f, .16f));
-        Stretch(bg.rectTransform);
+        Stretch(bg.rt());
 
-        // ---- Toast 提示 ----
+        // ---- Toast ----
         var toastGO = CreateImage("Toast", rootRT, new Color(0, 0, 0, .75f));
-        Stretch(toastGO.rectTransform);
-        toastGO.rectTransform.sizeDelta = new Vector2(0, 80);
-        toastGO.rectTransform.anchorMin = new Vector2(0, .45f);
-        toastGO.rectTransform.anchorMax = new Vector2(1, .45f);
-        toastGO.rectTransform.anchoredPosition = Vector2.zero;
+        var toastRT = toastGO.rt();
+        Stretch(toastRT);
+        toastRT.sizeDelta = new Vector2(0, 80);
+        toastRT.anchorMin = new Vector2(0, .45f);
+        toastRT.anchorMax = new Vector2(1, .45f);
+        toastRT.anchoredPosition = Vector2.zero;
         toastGroup = toastGO.AddComponent<CanvasGroup>();
         toastGroup.alpha = 0;
         uiToast = CreateText("ToastTxt", toastGO.transform, 30, Color.white, TextAnchor.MiddleCenter);
@@ -114,37 +110,30 @@ public class GameBootstrapper : MonoBehaviour
             new Vector2(0, 0), new Vector2(1, 1), new Vector2(0, -140f), new Vector2(0, -170f));
         var content = contentGO.GetComponent<RectTransform>();
 
-        // ═══════════════════════════════════════
-        //  面板 1：Main（掛機首頁＋戰鬥舞臺）
-        // ═══════════════════════════════════════
+        // ═══════ 面板 1：Main ═══════
         var main = CreatePanel("P_Main", content, new Color(0, 0, 0, 0),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(main.GetComponent<RectTransform>());
-
-        // ★ 修復：先禁用，賦值後再啟用
+        Stretch(main.rt());
         main.SetActive(false);
 
         var mp = main.AddComponent<MainPanelUI>();
 
-        // 戰鬥舞臺區域
         var stageArea = CreatePanel("StageArea", main.transform, new Color(.12f, .13f, .2f, .9f),
             new Vector2(.05f, .38f), new Vector2(.95f, .95f), Vector2.zero, Vector2.zero);
 
-        // 六張床
         var beds = new List<RectTransform>();
         for (int i = 0; i < 6; i++)
         {
             var bed = CreateImage($"Bed{i}", stageArea.transform, new Color(.45f, .3f, .2f));
-            var rt = bed.rectTransform;
+            var rt = bed.rt();
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(.13f + i * .148f, .12f);
             rt.sizeDelta = new Vector2(120, 70);
             beds.Add(rt);
             CreateTextIn(bed.transform, "床", 40, Color.white);
         }
 
-        // 小鬼模板
         var ghostT = CreateImage("GhostTpl", stageArea.transform, new Color(.6f, .85f, 1f, .9f));
-        ghostT.rectTransform.sizeDelta = new Vector2(70, 80);
+        ghostT.rt().sizeDelta = new Vector2(70, 80);
         ghostT.AddComponent<CanvasGroup>();
         CreateTextIn(ghostT.transform, "鬼", 40, new Color(.1f, .1f, .2f));
 
@@ -160,26 +149,21 @@ public class GameBootstrapper : MonoBehaviour
         SetRect(mp.offlineBanner.rectTransform, new Vector2(.05f, .78f), new Vector2(.95f, .95f), Vector2.zero, Vector2.zero);
 
         mp.claimBtn = CreateButton("領取離線收益", main.transform, new Color(.2f, .5f, .3f));
-        SetRect(mp.claimBtn.rectTransform, new Vector2(.06f, .04f), new Vector2(.48f, .14f), Vector2.zero, Vector2.zero);
+        SetRect(mp.claimBtn.rt(), new Vector2(.06f, .04f), new Vector2(.48f, .14f), Vector2.zero, Vector2.zero);
         mp.stageBtn = CreateButton("關卡掃蕩", main.transform, new Color(.6f, .4f, .15f));
-        SetRect(mp.stageBtn.rectTransform, new Vector2(.52f, .04f), new Vector2(.94f, .14f), Vector2.zero, Vector2.zero);
+        SetRect(mp.stageBtn.rt(), new Vector2(.52f, .04f), new Vector2(.94f, .14f), Vector2.zero, Vector2.zero);
         mp.forgeBtn = CreateButton("鍛造", main.transform, new Color(.35f, .3f, .55f));
-        SetRect(mp.forgeBtn.rectTransform, new Vector2(.52f, .15f), new Vector2(.94f, .24f), Vector2.zero, Vector2.zero);
+        SetRect(mp.forgeBtn.rt(), new Vector2(.52f, .15f), new Vector2(.94f, .24f), Vector2.zero, Vector2.zero);
 
-        main.SetActive(true); // ★ 賦值完成，啟用 → OnEnable 安全觸發
+        main.SetActive(true);
 
-        // ═══════════════════════════════════════
-        //  面板 2：Equip（裝備）
-        // ═══════════════════════════════════════
+        // ═══════ 面板 2：Equip ═══════
         var equip = CreatePanel("P_Equip", content, new Color(.11f, .12f, .18f, .98f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(equip.GetComponent<RectTransform>());
-
-        // ★ 修復：先禁用
+        Stretch(equip.rt());
         equip.SetActive(false);
 
         var ep = equip.AddComponent<EquipmentPanelUI>();
-
         var slotRow = CreateGrid("SlotRow", equip.transform, 3, new Vector2(.03f, .72f), new Vector2(.97f, .97f));
         ep.equipRow = slotRow.transform;
         for (int i = 0; i < 6; i++)
@@ -191,7 +175,6 @@ public class GameBootstrapper : MonoBehaviour
 
         var bagGrid = CreateGrid("BagGrid", equip.transform, 4, new Vector2(.03f, .30f), new Vector2(.97f, .70f));
         ep.bagGrid = bagGrid.transform;
-
         var cellTpl = CreateButton("CellTpl", bagGrid.transform, Color.white);
         cellTpl.name = "cellPrefab";
         ep.cellPrefab = cellTpl.gameObject;
@@ -219,61 +202,45 @@ public class GameBootstrapper : MonoBehaviour
                 case 5: ep.btnCleanup = btn; btn.onClick.AddListener(ep.OnCleanup); break;
             }
         }
+        equip.SetActive(true);
 
-        equip.SetActive(true); // ★ 賦值完成，啟用
-
-        // ═══════════════════════════════════════
-        //  面板 3：Character（角色）
-        // ═══════════════════════════════════════
+        // ═══════ 面板 3：Character ═══════
         var cha = CreatePanel("P_Char", content, new Color(.11f, .12f, .18f, .98f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(cha.GetComponent<RectTransform>());
-
-        // ★ 修復：先禁用
+        Stretch(cha.rt());
         cha.SetActive(false);
 
         var cp = cha.AddComponent<CharacterPanelUI>();
         cp.statText = CreateText("Stats", cha.transform, 30, Color.white, TextAnchor.UpperCenter);
         SetRect(cp.statText.rectTransform, new Vector2(.05f, .72f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
-
         var gfGrid = CreateGrid("Gongfa", cha.transform, 2, new Vector2(.03f, .06f), new Vector2(.97f, .70f));
         cp.gongfaRow = gfGrid.transform;
         cp.upgradeButtons = new Button[8];
         for (int i = 0; i < 8; i++)
             cp.upgradeButtons[i] = CreateButton("升級", gfGrid.transform, new Color(.3f, .35f, .5f));
+        cha.SetActive(true);
 
-        cha.SetActive(true); // ★ 賦值完成，啟用
-
-        // ═══════════════════════════════════════
-        //  面板 4：Stages（關卡）
-        // ═══════════════════════════════════════
+        // ═══════ 面板 4：Stages ═══════
         var stg = CreatePanel("P_Stages", content, new Color(.11f, .12f, .18f, .98f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(stg.GetComponent<RectTransform>());
-
+        Stretch(stg.rt());
         stg.SetActive(false);
 
         var sp = stg.AddComponent<StagePanelUI>();
         CreateScrollList("StageList", stg.transform, out var listContent,
             new Vector2(.03f, .28f), new Vector2(.97f, .97f));
         sp.listParent = listContent;
-
         var itemTpl = CreateButton("第 X 夜", listContent, Color.gray);
         sp.itemPrefab = itemTpl.gameObject;
         itemTpl.gameObject.SetActive(false);
-
         sp.resultText = CreateText("Result", stg.transform, 28, Color.white, TextAnchor.UpperCenter);
         SetRect(sp.resultText.rectTransform, new Vector2(.05f, .05f), new Vector2(.95f, .26f), Vector2.zero, Vector2.zero);
-
         stg.SetActive(true);
 
-        // ═══════════════════════════════════════
-        //  面板 5：Forge（鍛造）
-        // ═══════════════════════════════════════
+        // ═══════ 面板 5：Forge ═══════
         var forge = CreatePanel("P_Forge", content, new Color(.11f, .12f, .18f, .98f),
             Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Stretch(forge.GetComponent<RectTransform>());
-
+        Stretch(forge.rt());
         forge.SetActive(false);
 
         var fp = forge.AddComponent<ForgePanelUI>();
@@ -282,22 +249,17 @@ public class GameBootstrapper : MonoBehaviour
         string[] names = { "武器", "頭部", "衣服", "飾品", "法器", "鞋子" };
         for (int i = 0; i < 6; i++)
             fp.slotButtons[i] = CreateButton(names[i], fRow.transform, new Color(.25f, .28f, .4f));
-
         fp.infoText = CreateText("Info", forge.transform, 30, Color.white, TextAnchor.MiddleCenter);
         SetRect(fp.infoText.rectTransform, new Vector2(.05f, .35f), new Vector2(.95f, .58f), Vector2.zero, Vector2.zero);
-
         var doBtn = CreateButton("開始鍛造", forge.transform, new Color(.6f, .35f, .15f));
-        SetRect(doBtn.rectTransform, new Vector2(.2f, .15f), new Vector2(.8f, .3f), Vector2.zero, Vector2.zero);
+        SetRect(doBtn.rt(), new Vector2(.2f, .15f), new Vector2(.8f, .3f), Vector2.zero, Vector2.zero);
         doBtn.onClick.AddListener(fp.DoForge);
-
         forge.SetActive(true);
 
-        // ═══════════════════════════════════════
-        //  底部導航
-        // ═══════════════════════════════════════
+        // ═══════ 底部導航 ═══════
         var nav = CreatePanel("NavBar", rootRT, new Color(.13f, .14f, .2f),
             new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 170f), new Vector2(0, 0));
-        nav.GetComponent<RectTransform>().sizeDelta = new Vector2(0, 170);
+        nav.rt().sizeDelta = new Vector2(0, 170);
 
         var um = gameObject.AddComponent<UIManager>();
         um.panelNames = new[] { "Main", "Equip", "Character", "Stages", "Forge" };
@@ -310,7 +272,7 @@ public class GameBootstrapper : MonoBehaviour
         for (int i = 0; i < 5; i++)
         {
             var b = CreateButton(tabs[i], nav.transform, new Color(.2f, .22f, .3f));
-            var rt = b.rectTransform;
+            var rt = b.rt();
             rt.anchorMin = new Vector2(i / 5f + .01f, .1f);
             rt.anchorMax = new Vector2((i + 1) / 5f - .01f, .9f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
@@ -318,7 +280,6 @@ public class GameBootstrapper : MonoBehaviour
             b.onClick.AddListener(() => um.Open(k));
         }
 
-        // ---- 掛機系統 ----
         var idleGO = new GameObject("IdleSystem");
         idleGO.transform.SetParent(transform, false);
         idleGO.AddComponent<IdleSystem>();
@@ -327,7 +288,7 @@ public class GameBootstrapper : MonoBehaviour
     }
 
     // ══════════════════════════════════════════════
-    //  UI 工具方法
+    //  工具方法
     // ══════════════════════════════════════════════
 
     Sprite MakeSquareSprite()
@@ -422,13 +383,9 @@ public class GameBootstrapper : MonoBehaviour
         return go;
     }
 
-    /// <summary>
-    /// ★ 修復：正確創建 RectTransform，避免 MissingComponentException。
-    /// </summary>
     void CreateScrollList(string name, Transform parent, out RectTransform contentRT,
         Vector2 aMin, Vector2 aMax)
     {
-        // 外層 ScrollRect
         var scrollGO = new GameObject(name, typeof(RectTransform), typeof(ScrollRect), typeof(Mask), typeof(Image));
         scrollGO.transform.SetParent(parent, false);
         var scrollRT = scrollGO.GetComponent<RectTransform>();
@@ -441,16 +398,14 @@ public class GameBootstrapper : MonoBehaviour
         scroll.horizontal = false;
         scroll.vertical = true;
 
-        // ★ 修復：Viewport 必須有 RectTransform
         var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(Mask));
         viewport.transform.SetParent(scrollGO.transform, false);
         var vpRT = viewport.GetComponent<RectTransform>();
         Stretch(vpRT);
         var vpImg = viewport.GetComponent<Image>();
-        vpImg.color = new Color(0, 0, 0, 0.01f); // 幾乎透明，但 Mask 需要
+        vpImg.color = new Color(0, 0, 0, 0.01f);
         viewport.GetComponent<Mask>().showMaskGraphic = false;
 
-        // ★ 修復：Content 必須有 RectTransform
         var contentGO = new GameObject("Content", typeof(RectTransform));
         contentGO.transform.SetParent(viewport.transform, false);
         contentRT = contentGO.GetComponent<RectTransform>();
@@ -460,7 +415,6 @@ public class GameBootstrapper : MonoBehaviour
         contentRT.offsetMin = Vector2.zero;
         contentRT.offsetMax = Vector2.zero;
 
-        // 加 VerticalLayoutGroup + ContentSizeFitter
         var vlg = contentGO.AddComponent<VerticalLayoutGroup>();
         vlg.spacing = 8;
         vlg.padding = new RectOffset(10, 10, 10, 10);
