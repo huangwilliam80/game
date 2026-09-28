@@ -3,14 +3,12 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 #if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem.UI;   // Unity 6 預設新輸入系統時才編譯這行
+using UnityEngine.InputSystem.UI;
 #endif
 using UnityEngine.UI;
 
 /// <summary>
-/// 小工具：Image / TMP_Text / Button 都是「元件(Component)」，都能用 GetComponent。
-/// 注意：Button 繼承自 Selectable→Component（不是 Graphic），舊版 Unity 沒有 rectTransform 屬性，
-/// 所以統一用 .rt 擴充方法取 RectTransform，全版本相容。
+/// 小工具：統一用 .rt 擴充方法取 RectTransform，全版本相容。
 /// </summary>
 public static class UiExt
 {
@@ -18,10 +16,7 @@ public static class UiExt
 }
 
 /// <summary>
-/// 場景自動搭建器（新手友善核心！）：
-/// 掛在空物體上按 Play，它會用程式碼生成整套豎屏 UI（Canvas、頂欄、五個面板、導航列、戰鬥舞臺），
-/// 並自動把引用指派給各面板腳本 —— 你完全不需要手動拖拽。
-/// 若想微調外觀，可在 Unity Editor 的 Hierarchy 中直接改生成的物件。
+/// 場景自動搭建器：用程式碼生成整套豎屏 UI，無需手動拖拽。
 /// </summary>
 public class GameBootstrapper : MonoBehaviour
 {
@@ -36,17 +31,16 @@ public class GameBootstrapper : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 60;          // 流暢幀率保證
+        Application.targetFrameRate = 60;
 
         EquipmentDatabase.Init();
         CharacterSystem.Init();
         GameSave.Load();
 
-        // 重構詞綴（存檔只存 seed → 還原 affixes）
         foreach (var e in GameSave.Data.bags) e.RegenerateAffixes();
         foreach (var e in GameSave.Data.equipped) if (e != null) e.RegenerateAffixes();
 
-        var (sec, g, e2) = GameSave.SettleOffline();   // 先結算離線收益入帳
+        var (sec, g, e2) = GameSave.SettleOffline();
 
         BuildUI();
 
@@ -55,7 +49,6 @@ public class GameBootstrapper : MonoBehaviour
 
     void Update()
     {
-        // 每 30 秒自動存檔（防閃退丟進度）
         autoSave += Time.deltaTime;
         if (autoSave > 30f) { autoSave = 0; GameSave.Save(); }
     }
@@ -64,9 +57,6 @@ public class GameBootstrapper : MonoBehaviour
     void OnApplicationPause(bool p) { if (p) GameSave.Save(); }
     void OnApplicationQuit() => GameSave.Save();
 
-    // ==================================================================
-    //  UI 生成區（全部程式碼，無 prefab 依賴）
-    // ==================================================================
     Canvas canvas;
     RectTransform rootRT;
 
@@ -80,7 +70,7 @@ public class GameBootstrapper : MonoBehaviour
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080, 1920);      // 豎屏基準
+        scaler.referenceResolution = new Vector2(1080, 1920);
         scaler.matchWidthOrHeight = 0.5f;
         canvasGO.AddComponent<GraphicRaycaster>();
         rootRT = canvasGO.GetComponent<RectTransform>();
@@ -108,20 +98,18 @@ public class GameBootstrapper : MonoBehaviour
         top.stageLabel = CreateText("Stage", topBarGO.transform, 26, new Color(.9f, .9f, .9f), TextAnchor.MiddleRight);
         SetRect(top.stageLabel.rt(), new Vector2(.5f, 0), new Vector2(1, 1), new Vector2(-20, 0), Vector2.zero);
 
-        // ---- 中央內容區（面板都放這裡）----
+        // ---- 中央內容區 ----
         var contentGO = CreatePanel("Content", rootRT, new Color(0, 0, 0, 0),
             new Vector2(0, 0), new Vector2(1, 1), new Vector2(0, -140f), new Vector2(0, -170f));
         var content = contentGO.GetComponent<RectTransform>();
 
-        // === 面板 1：Main（掛機首頁＋戰鬥舞臺）===
+        // === 面板 1：Main ===
         var main = CreatePanel("P_Main", content, new Color(0, 0, 0, 0), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         Stretch(main.GetComponent<RectTransform>());
         var mp = main.AddComponent<MainPanelUI>();
 
-        // 戰鬥舞臺區域
         var stageArea = CreatePanel("StageArea", main.transform, new Color(.12f, .13f, .2f, .9f),
             new Vector2(.05f, .38f), new Vector2(.95f, .95f), Vector2.zero, Vector2.zero);
-        // 六張床
         var beds = new System.Collections.Generic.List<RectTransform>();
         for (int i = 0; i < 6; i++)
         {
@@ -132,7 +120,6 @@ public class GameBootstrapper : MonoBehaviour
             beds.Add(rt);
             CreateTextIn(bed.transform, "床", 40, Color.white);
         }
-        // 小鬼模板（池化用）
         var ghostT = CreateImage("GhostTpl", stageArea.transform, new Color(.6f, .85f, 1f, .9f));
         ghostT.rt().sizeDelta = new Vector2(70, 80);
         ghostT.gameObject.AddComponent<CanvasGroup>();
@@ -156,7 +143,7 @@ public class GameBootstrapper : MonoBehaviour
         mp.forgeBtn = CreateButton("鍛造", main.transform, new Color(.35f, .3f, .55f));
         SetRect(mp.forgeBtn.rt(), new Vector2(.52f, .15f), new Vector2(.94f, .24f), Vector2.zero, Vector2.zero);
 
-        // 【修正重點 1】：為三個核心按鈕綁定點擊事件
+        // 綁定按鈕事件
         mp.claimBtn.onClick.AddListener(() => IdleSystem.I?.CollectOfflineNow());
         mp.stageBtn.onClick.AddListener(() => UIManager.I?.Open("Stages"));
         mp.forgeBtn.onClick.AddListener(() => UIManager.I?.Open("Forge"));
@@ -181,11 +168,8 @@ public class GameBootstrapper : MonoBehaviour
         cellTpl.gameObject.SetActive(false);
         ep.detailText = CreateText("Detail", equip.transform, 26, Color.white, TextAnchor.UpperLeft);
         SetRect(ep.detailText.rt(), new Vector2(.03f, .08f), new Vector2(.62f, .29f), Vector2.zero, Vector2.zero);
-        
         string[] ops = { "強化", "洗鍊", "升階", "穿戴", "分解", "一鍵清理" };
-        // 【修正重點 2】：將 new(...) 改為 new Color(...) 以確保 C# 舊版相容
         Color[] oc = { new Color(.25f, .45f, .7f), new Color(.55f, .3f, .7f), new Color(.7f, .5f, .2f), new Color(.2f, .55f, .3f), new Color(.6f, .25f, .25f), new Color(.4f, .4f, .45f) };
-        
         var actRow = CreateGrid("Ops", equip.transform, 3, new Vector2(.63f, .06f), new Vector2(.98f, .29f));
         for (int i = 0; i < 6; i++)
         {
@@ -278,22 +262,20 @@ public class GameBootstrapper : MonoBehaviour
         top.Refresh();
     }
 
-    CanvasGroup toastGroup; TMP_Text uiToast;
+    CanvasGroup toastGroup;
+    TextMeshProUGUI uiToast;
 
     // ================= 小工具 =================
 
     void EnsureEventSystem()
     {
-        // 【修正重點 3】：使用 FindObjectOfType 取代 FindAnyObjectByType 以確保相容 Unity 2021/2022
-        if (UnityEngine.Object.FindObjectOfType<EventSystem>() != null) return;
+        // 使用 FindAnyObjectByType（Unity 2023+ 推薦）
+        if (FindAnyObjectByType<EventSystem>() != null) return;
         var es = new GameObject("EventSystem");
         es.transform.SetParent(rootRT, false);
         es.AddComponent<EventSystem>();
 #if ENABLE_INPUT_SYSTEM && UNITY_6000_0_OR_NEWER
-        // Unity 6：新輸入系統的 UI 模組（需要 com.unity.inputsystem 套件）
-        es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
-#elif ENABLE_LEGACY_INPUT_MANAGER
-        es.AddComponent<StandaloneInputModule>();   // 舊輸入系統退回方案
+        es.AddComponent<InputSystemUIInputModule>();
 #else
         es.AddComponent<StandaloneInputModule>();
 #endif
@@ -320,13 +302,15 @@ public class GameBootstrapper : MonoBehaviour
         return img;
     }
 
-    TMP_Text CreateText(string name, Transform parent, int size, Color col, TextAnchor anchor = TextAnchor.MiddleCenter)
+    /// <summary>
+    /// 【修正】：返回類型改為 TextMeshProUGUI，解決 CS0266 錯誤
+    /// </summary>
+    TextMeshProUGUI CreateText(string name, Transform parent, int size, Color col, TextAnchor anchor = TextAnchor.MiddleCenter)
     {
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var t = go.AddComponent<TextMeshProUGUI>();
-        t.fontSize = size; t.color = col; t.alignment = (TMPro.TextAlignmentOptions)anchor;
+        t.fontSize = size; t.color = col; t.alignment = (TextAlignmentOptions)anchor;
         t.text = name; t.overflowMode = TextOverflowModes.Ellipsis;
-        // 換行開關：新版 TMP 用 textWrappingMode，舊版（2021/2022）用 enableWordWrapping，兩者都相容
 #if UNITY_2022_3_OR_NEWER || UNITY_6000_0_OR_NEWER
         t.textWrappingMode = TextWrappingModes.Normal;
 #else
@@ -369,7 +353,7 @@ public class GameBootstrapper : MonoBehaviour
     {
         var sv = CreatePanel(name, parent, new Color(.08f, .08f, .12f, .6f), aMin, aMax, Vector2.zero, Vector2.zero);
         var scroll = sv.AddComponent<ScrollRect>();
-        var vp = sv;                       // 本身當 viewport
+        var vp = sv;
         var c = new GameObject("Content"); c.transform.SetParent(sv.transform, false);
         contentRT = c.GetComponent<RectTransform>();
         contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
