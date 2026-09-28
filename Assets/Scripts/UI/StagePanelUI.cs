@@ -13,6 +13,8 @@ public class StagePanelUI : MonoBehaviour
     public GameObject itemPrefab;       // 条目模板（含 TMP_Text + Button）
     public TMP_Text resultText;         // 結算區
     public Button backBtn;
+    public Button runBtn;               // ★ 進入「靈玉秘境」（Roguelite 即時戰鬥）
+    public TMP_Text runHint;            // 秘境獎勵預覽文案
 
     readonly List<GameObject> items = new List<GameObject>();
 
@@ -21,13 +23,41 @@ public class StagePanelUI : MonoBehaviour
         GameEvents.OnStageChanged += Refresh;
         GameEvents.OnHeroChanged += Refresh;
         if (backBtn) backBtn.onClick.AddListener(() => UIManager.I.CloseAll());
+        if (runBtn) runBtn.onClick.AddListener(OnRunClicked);
+        GameEvents.OnRunStart += OnRunStateChanged;
+        GameEvents.OnRunEnd += OnRunStateChanged;
         BuildItems();
         Refresh();
+        RefreshRunButton();
     }
     void OnDisable()
     {
         GameEvents.OnStageChanged -= Refresh;
         GameEvents.OnHeroChanged -= Refresh;
+        GameEvents.OnRunStart -= OnRunStateChanged;
+        GameEvents.OnRunEnd -= OnRunStateChanged;
+    }
+
+    void OnRunStateChanged() => RefreshRunButton();
+
+    /// <summary>秘境按鈕：顯示這一把會拿到什麼，並在有 run 時禁用。</summary>
+    void RefreshRunButton()
+    {
+        int stage = Mathf.Max(1, GameSave.Data.currentStage);
+        bool busy = RunController.I != null && RunController.I.IsRunning;
+        if (runBtn) runBtn.interactable = !busy;
+        if (runHint)
+            runHint.text = busy
+                ? "歷練進行中…（上半部即為戰鬥畫面）"
+                : $"第 {stage} 夜 · 靈玉秘境
+通關獎勵：{RunController.RewardPreview(stage)}
+特色：每波三選一功法、開局重置";
+    }
+
+    void OnRunClicked()
+    {
+        if (RunController.I == null) { GameEvents.Toast("秘境系統未就緒"); return; }
+        RunController.I.StartRun(Mathf.Max(1, GameSave.Data.currentStage));
     }
 
     void BuildItems()
@@ -55,7 +85,7 @@ public class StagePanelUI : MonoBehaviour
             if (!txt) continue;
             float need = GameMath.MonsterHp(stageId, 4 + stageId / 10) * 0.6f;
             string tag = stageId <= maxCleared ? "✅" : (power >= need ? "⚔可戰" : "🔒");
-            txt.text = $"第 {stageId} 夜 {tag}\n需求≈{need:N0}";
+            txt.text = $"第 {stageId} 夜 {tag}｜點擊掃蕩\n需求戰力 ≈{need:N0}／我方 {power:N0}";
             items[i].GetComponent<Image>().color = stageId <= maxCleared
                 ? new Color(.3f, .5f, .3f) : (power >= need ? new Color(.7f, .55f, .2f) : Color.gray);
         }

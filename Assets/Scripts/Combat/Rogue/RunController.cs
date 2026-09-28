@@ -18,6 +18,16 @@ public class RunController : MonoBehaviour
     public int totalWaves;
     public readonly List<RogueBuffDef> buffs = new List<RogueBuffDef>();
 
+    /// <summary>目前是否有 run 進行中（UI 用它來禁用按鈕）。</summary>
+    public bool IsRunning => state != RunState.Home;
+
+    /// <summary>某關卡「靈玉秘境」的预估獎勵（給按鈕文案用，與 Confirm 公式保持一致）。</summary>
+    public static string RewardPreview(int stageId)
+    {
+        var sd = new StageDef { id = stageId };
+        return $"金幣 {TopBarUI.Num(sd.GoldReward)}｜經驗 {TopBarUI.Num(sd.ExpReward * 2)}｜靈玉 {3 + stageId / 3}｜碎片 {4 + stageId / 5}";
+    }
+
     // 我方戰鬥數值(含 buff 加成)
     float heroHp, heroHpMax, heroAtk, heroDef, heroCrit, heroLifesteal;
     int heroExtraHits;
@@ -37,8 +47,8 @@ public class RunController : MonoBehaviour
 
     void Update()
     {
-        // ★ 測試用:Play 模式下按 R 直接開 run(之後改由 UI 按鈕觸發)
-        if (Input.GetKeyDown(KeyCode.R) && state == RunState.Home)
+        // 除錯快捷鍵：Play 模式下按 R 直接開一場秘境（正式版靠 UI 按鈕）
+        if (DebugShortcutPressed() && state == RunState.Home)
             StartRun(Mathf.Max(1, GameSave.Data.currentStage));
 
         if (state != RunState.Fighting) return;
@@ -55,7 +65,9 @@ public class RunController : MonoBehaviour
 
     public void StartRun(int id)
     {
-        if (state != RunState.Home) return;
+        if (state != RunState.Home) { GameEvents.Toast("正在歷練中…"); return; }
+        if (GameSave.Data.bags.Count >= InventorySystem.BagCapacity)
+        { GameEvents.Toast("背包已滿，先整理再進秘境"); return; }
         stageId = id;
         wave = 0;
         buffs.Clear();
@@ -155,11 +167,21 @@ public class RunController : MonoBehaviour
         {
             var sd = new StageDef { id = stageId };
             d.gold += sd.GoldReward;
-            CharacterSystem.AddExp(sd.ExpReward);
-            // d.shard += 1;   // 若你的存檔有 shard 欄位,取消註解即可當 run 貨幣
+            d.spiritCrystal += 3 + stageId / 3;      // 靈玉：洗鍊的來源
+            d.forgeShard += 4 + stageId / 5;         // 碎片：鍛造的來源
+            CharacterSystem.AddExp(sd.ExpReward * 2); // 秘境經驗雙倍 → 玩家願意主動打
+            if (stageId > d.maxStageCleared)
+            {
+                d.maxStageCleared = stageId;
+                d.currentStage = Mathf.Min(stageId + 1, 200);
+                GameEvents.RaiseStage();
+            }
         }
         GameEvents.RaiseCurrency(CurrencyType.Gold, d.gold);
+        GameEvents.RaiseCurrency(CurrencyType.SpiritCrystal, d.spiritCrystal);
+        GameEvents.RaiseCurrency(CurrencyType.ForgeShard, d.forgeShard);
         GameEvents.RaiseHero();
+        GameEvents.Toast(lastWin ? "秘境通關！資源已入帳" : "歷練失敗…先強化裝備再來");
         ExitRun();
     }
 
@@ -244,5 +266,18 @@ public class RunController : MonoBehaviour
         float dmg = Mathf.Max(1f, atk - def * 0.5f);
         if (crit) dmg *= 2f;
         return dmg * GameMath.RandFloat(0.9f, 1.1f);
+    }
+
+    /// <summary>同時相容舊/新輸入系統的除錯快捷鍵（R 開一把）。</summary>
+    static bool DebugShortcutPressed()
+    {
+#if ENABLE_LEGACY_INPUT_MANAGER
+        return Input.GetKeyDown(KeyCode.R);
+#elif ENABLE_INPUT_SYSTEM
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        return kb != null && kb.rKey.wasPressedThisFrame;
+#else
+        return false;
+#endif
     }
 }

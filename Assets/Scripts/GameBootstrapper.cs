@@ -98,20 +98,20 @@ public class GameBootstrapper : MonoBehaviour
 
         // ==== 上半部:WorldView(永遠顯示的戰鬥演出) ====
         var worldViewGO = CreatePanel("WorldView", middle.transform, new Color(0.05f, 0.08f, 0.12f),
-            new Vector2(0, 0.4f), Vector2.one, Vector2.zero, Vector2.zero);
+            new Vector2(0, 0.45f), Vector2.one, Vector2.zero, Vector2.zero);
         Stretch(worldViewGO.rt());
         var wv = worldViewGO.AddComponent<WorldView>();
         wv.worldArea = worldViewGO.rt();
 
         // 主角
         var heroImg = CreateImage("Hero", worldViewGO.transform, new Color(0.3f, 0.7f, 1f));
-        heroImg.rt().anchorMin = heroImg.rt().anchorMax = new Vector2(0.25f, 0.5f);
-        heroImg.rt().sizeDelta = new Vector2(180, 240);
+        heroImg.rt().anchorMin = heroImg.rt().anchorMax = new Vector2(0.25f, 0.52f);
+        heroImg.rt().sizeDelta = new Vector2(170, 230);
         wv.heroImage = heroImg;
 
         // 主角血條
         var heroBarBg = CreateImage("HeroHpBarBg", worldViewGO.transform, new Color(0.2f, 0.2f, 0.2f));
-        heroBarBg.rt().anchorMin = heroBarBg.rt().anchorMax = new Vector2(0.25f, 0.15f);
+        heroBarBg.rt().anchorMin = heroBarBg.rt().anchorMax = new Vector2(0.25f, 0.16f);
         heroBarBg.rt().sizeDelta = new Vector2(180, 18);
         var heroFill = CreateImage("HeroHpFill", heroBarBg.transform, new Color(0.2f, 0.9f, 0.3f));
         var hf = heroFill.GetComponent<Image>();
@@ -123,7 +123,7 @@ public class GameBootstrapper : MonoBehaviour
 
         // 敵人錨點 + 模板
         var enemyAnchor = CreatePanel("EnemyAnchor", worldViewGO.transform, new Color(0, 0, 0, 0),
-            new Vector2(0.65f, 0.4f), new Vector2(0.85f, 0.8f), Vector2.zero, Vector2.zero);
+            new Vector2(0.62f, 0.35f), new Vector2(0.9f, 0.8f), Vector2.zero, Vector2.zero);
         wv.enemyAnchor = enemyAnchor.rt();
         var enemyTpl = CreateImage("EnemyTpl", enemyAnchor.transform, new Color(0.9f, 0.3f, 0.3f));
         enemyTpl.rt().sizeDelta = new Vector2(160, 200);
@@ -132,7 +132,7 @@ public class GameBootstrapper : MonoBehaviour
 
         // 敵人血條 + 名稱
         var eBarBg = CreateImage("EnemyHpBarBg", worldViewGO.transform, new Color(0.2f, 0.2f, 0.2f));
-        eBarBg.rt().anchorMin = eBarBg.rt().anchorMax = new Vector2(0.75f, 0.15f);
+        eBarBg.rt().anchorMin = eBarBg.rt().anchorMax = new Vector2(0.76f, 0.16f);
         eBarBg.rt().sizeDelta = new Vector2(180, 18);
         var eFill = CreateImage("EnemyHpFill", eBarBg.transform, new Color(0.9f, 0.3f, 0.3f));
         var ef = eFill.GetComponent<Image>();
@@ -140,7 +140,7 @@ public class GameBootstrapper : MonoBehaviour
         Stretch(eFill.rt());
         wv.enemyHpFill = ef;
         wv.enemyNameText = CreateText("EnemyName", worldViewGO.transform, 22, Color.white, TextAnchor.MiddleCenter);
-        wv.enemyNameText.rt().anchorMin = wv.enemyNameText.rt().anchorMax = new Vector2(0.75f, 0.85f);
+        wv.enemyNameText.rt().anchorMin = wv.enemyNameText.rt().anchorMax = new Vector2(0.76f, 0.86f);
         wv.enemyNameText.rt().sizeDelta = new Vector2(200, 40);
         wv.enemyHpText = CreateText("EnemyHpTxt", eBarBg.transform, 20, Color.white, TextAnchor.MiddleCenter);
         Stretch(wv.enemyHpText.rt());
@@ -155,6 +155,18 @@ public class GameBootstrapper : MonoBehaviour
         dmgTplGo.SetActive(false);
         wv.dmgNumberPrefab = dmgTplGo;
 
+        // 波次橫幅（第 X 波 / BOSS）
+        var waveBanner = CreateText("WaveBanner", worldViewGO.transform, 30, new Color(.85f, .9f, 1f), TextAnchor.UpperCenter);
+        SetRect(waveBanner.rt(), new Vector2(0, 0.9f), new Vector2(1, 1f), Vector2.zero, Vector2.zero);
+        wv.waveBanner = waveBanner;
+
+        // 快速進入秘境的浮動按鈕（UX：一眼看到「現在能做什麼」）
+        var quickRunBtn = CreateButton("⚔ 靈玉秘境", worldViewGO.transform, new Color(.55f, .28f, .65f));
+        SetRect(quickRunBtn.rt(), new Vector2(.62f, .02f), new Vector2(.98f, .12f), Vector2.zero, Vector2.zero);
+        quickRunBtn.onClick.AddListener(() => RunController.I?.StartRun(Mathf.Max(1, GameSave.Data.currentStage)));
+        var quickLbl = quickRunBtn.GetComponentInChildren<TMP_Text>();
+        if (quickLbl) quickLbl.fontSize = 26;
+
         // buff 標籤列
         var buffLbl = new GameObject("BuffLbl"); buffLbl.transform.SetParent(worldViewGO.transform, false);
         var bl = buffLbl.AddComponent<TextMeshProUGUI>();
@@ -166,7 +178,7 @@ public class GameBootstrapper : MonoBehaviour
 
         // ==== 下半部:Dock(面板切換區) ====
         var dock = CreatePanel("Dock", middle.transform, new Color(0.11f, 0.12f, 0.18f),
-            Vector2.zero, new Vector2(1, 0.4f), Vector2.zero, Vector2.zero);
+            Vector2.zero, new Vector2(1, 0.45f), Vector2.zero, Vector2.zero);
         Stretch(dock.rt());
         var content = dock.rt();
 
@@ -174,19 +186,22 @@ public class GameBootstrapper : MonoBehaviour
         var main = CreatePanel("P_Main", content, new Color(0, 0, 0, 0), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         Stretch(main.rt());
         var mp = main.AddComponent<MainPanelUI>();
-        mp.goalLabel = CreateText("Goal", main.transform, 30, new Color(.95f, .95f, .8f), TextAnchor.MiddleCenter);
-        SetRect(mp.goalLabel.rt(), new Vector2(.05f, .16f), new Vector2(.95f, .38f), Vector2.zero, Vector2.zero);
-        mp.offlineBanner = CreateText("Offline", main.transform, 32, new Color(1f, .9f, .5f), TextAnchor.MiddleCenter);
-        SetRect(mp.offlineBanner.rt(), new Vector2(.05f, .78f), new Vector2(.95f, .95f), Vector2.zero, Vector2.zero);
+        // 排版：上半=离线横幅 → 下一目标；下半=三顆行動按鈕（大按钮、拇指可及）
+        mp.offlineBanner = CreateText("Offline", main.transform, 30, new Color(1f, .9f, .5f), TextAnchor.MiddleCenter);
+        SetRect(mp.offlineBanner.rt(), new Vector2(.05f, .74f), new Vector2(.95f, .96f), Vector2.zero, Vector2.zero);
+        mp.goalLabel = CreateText("Goal", main.transform, 28, new Color(.95f, .95f, .8f), TextAnchor.UpperCenter);
+        SetRect(mp.goalLabel.rt(), new Vector2(.05f, .46f), new Vector2(.95f, .74f), Vector2.zero, Vector2.zero);
+        mp.dungeonBtn = CreateButton("⚔ 靈玉秘境（即時戰鬥）", main.transform, new Color(.55f, .28f, .65f));
+        SetRect(mp.dungeonBtn.rt(), new Vector2(.06f, .30f), new Vector2(.94f, .43f), Vector2.zero, Vector2.zero);
         mp.claimBtn = CreateButton("領取離線收益", main.transform, new Color(.2f, .5f, .3f));
-        SetRect(mp.claimBtn.rt(), new Vector2(.06f, .04f), new Vector2(.48f, .14f), Vector2.zero, Vector2.zero);
+        SetRect(mp.claimBtn.rt(), new Vector2(.06f, .14f), new Vector2(.48f, .27f), Vector2.zero, Vector2.zero);
         mp.stageBtn = CreateButton("關卡掃蕩", main.transform, new Color(.6f, .4f, .15f));
-        SetRect(mp.stageBtn.rt(), new Vector2(.52f, .04f), new Vector2(.94f, .14f), Vector2.zero, Vector2.zero);
-        mp.forgeBtn = CreateButton("鍛造", main.transform, new Color(.35f, .3f, .55f));
-        SetRect(mp.forgeBtn.rt(), new Vector2(.52f, .15f), new Vector2(.94f, .24f), Vector2.zero, Vector2.zero);
+        SetRect(mp.stageBtn.rt(), new Vector2(.52f, .14f), new Vector2(.94f, .27f), Vector2.zero, Vector2.zero);
+        mp.forgeBtn = CreateButton("整理背包", main.transform, new Color(.35f, .3f, .55f));
+        SetRect(mp.forgeBtn.rt(), new Vector2(.06f, .0f), new Vector2(.48f, .12f), Vector2.zero, Vector2.zero);
         mp.claimBtn.onClick.AddListener(() => IdleSystem.I?.CollectOfflineNow());
         mp.stageBtn.onClick.AddListener(() => UIManager.I?.Open("Stages"));
-        mp.forgeBtn.onClick.AddListener(() => UIManager.I?.Open("Forge"));
+        mp.forgeBtn.onClick.AddListener(() => UIManager.I?.Open("Equip"));
 
         // === 面板 2:Equip ===
         var equip = CreatePanel("P_Equip", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -241,13 +256,22 @@ public class GameBootstrapper : MonoBehaviour
         Stretch(stg.rt());
         var sp = stg.AddComponent<StagePanelUI>();
         CreateScrollList("StageList", stg.transform, out var listContent,
-            new Vector2(.03f, .28f), new Vector2(.97f, .97f));
+            new Vector2(.03f, .34f), new Vector2(.97f, .97f));
         sp.listParent = listContent;
         var itemTpl = CreateButton("第 X 夜", listContent, Color.gray);
         sp.itemPrefab = itemTpl.gameObject;
         itemTpl.gameObject.SetActive(false);
-        sp.resultText = CreateText("Result", stg.transform, 28, Color.white, TextAnchor.UpperCenter);
-        SetRect(sp.resultText.rt(), new Vector2(.05f, .05f), new Vector2(.95f, .26f), Vector2.zero, Vector2.zero);
+        sp.resultText = CreateText("Result", stg.transform, 26, Color.white, TextAnchor.UpperLeft);
+        SetRect(sp.resultText.rt(), new Vector2(.05f, .04f), new Vector2(.55f, .26f), Vector2.zero, Vector2.zero);
+
+        // ★ 秘境（Roguelite）入口：文案直接告訴玩家獎勵與特色
+        sp.runHint = CreateText("RunHint", stg.transform, 22, new Color(.9f, .88f, .75f), TextAnchor.UpperLeft);
+        SetRect(sp.runHint.rt(), new Vector2(.57f, .04f), new Vector2(.98f, .26f), Vector2.zero, Vector2.zero);
+        var runB = CreateButton("進入靈玉秘境（即時戰鬥）", stg.transform, new Color(.62f, .3f, .7f));
+        SetRect(runB.rt(), new Vector2(.57f, .27f), new Vector2(.98f, .33f), Vector2.zero, Vector2.zero);
+        var runT = runB.GetComponentInChildren<TMP_Text>();
+        if (runT) runT.fontSize = 22;
+        sp.runBtn = runB;
 
         // === 面板 5:Forge ===
         var forge = CreatePanel("P_Forge", content, new Color(.11f, .12f, .18f, .98f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -334,7 +358,7 @@ public class GameBootstrapper : MonoBehaviour
         SetRect(confBtn.rt(), new Vector2(0.3f, 0.02f), new Vector2(0.7f, 0.13f), Vector2.zero, Vector2.zero);
         rr.confirmBtn = confBtn;
 
-        // ---- Toast ----
+        // ---- Toast（掛在根層，任何面板都能看見）----
         var toastGO = new GameObject("Toast"); toastGO.transform.SetParent(rootRT, false);
         var toastGroup = toastGO.AddComponent<CanvasGroup>();
         toastGroup.alpha = 0; toastGroup.blocksRaycasts = false;
@@ -344,12 +368,7 @@ public class GameBootstrapper : MonoBehaviour
         trt.anchorMin = new Vector2(.1f, .55f); trt.anchorMax = new Vector2(.9f, .65f);
         trt.offsetMin = trt.offsetMax = Vector2.zero;
         SetRect(uiToast.rt(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-
-        GameEvents.OnToast += msg =>
-        {
-            if (uiToast) uiToast.text = msg;
-            if (toastGroup) StartCoroutine(FadeToast(toastGroup));
-        };
+        um.BindToast(uiToast, toastGroup);   // ★ Toast 交給 UIManager 統一播放（含淡出）
 
         // ---- 底部導航 ----
         var nav = CreatePanel("NavBar", rootRT, new Color(.13f, .14f, .2f),
@@ -376,21 +395,27 @@ public class GameBootstrapper : MonoBehaviour
         var runGO = new GameObject("RunController"); runGO.transform.SetParent(transform, false);
         runGO.AddComponent<RunController>();
 
+        ApplyFont();
         top.Refresh();
     }
 
-    System.Collections.IEnumerator FadeToast(CanvasGroup cg)
+    /// <summary>把所有文字套上專案內的中文字型（沒有就沿用 TMP 預設）。</summary>
+    void ApplyFont()
     {
-        yield return new WaitForSeconds(1.5f);
-        float t = 1f;
-        while (t > 0)
+        var f = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        var all = canvas.GetComponentsInChildren<TextMeshProUGUI>(true);
+        foreach (var t in all)
         {
-            t -= Time.deltaTime;
-            cg.alpha = t;
-            yield return null;
+            if (CJKFont != null) t.font = CJKFont;
+            else if (f != null) t.font = f;
+            t.enableAutoSizing = false;
         }
-        cg.alpha = 0;
     }
+
+    /// <summary>中文字型：請把 SourceHanSansCN-Regular SDF.asset 放到 Assets/Resources/Fonts/ 後自動生效。</summary>
+    static TMP_FontAsset CJKFont => cjkFont != null ? cjkFont : (cjkFont =
+        Resources.Load<TMP_FontAsset>("Fonts/SourceHanSansCN-Regular SDF"));
+    static TMP_FontAsset cjkFont;
 
     // ================= 小工具 =================
     void EnsureEventSystem()

@@ -87,19 +87,19 @@ public class RunResultUI : MonoBehaviour
             var statT = Find<TMP_Text>(rows[i].transform, "Stat");
             var btn = rows[i].GetComponentInChildren<Button>();
 
-            // 名稱(含品質)
+            // 名稱（含品質色）＋ 保留/分解標記
+            var st = eq != null ? eq.FinalStats() : new StatBlock();
             if (nameT != null)
             {
-                string mark = keepFlags[i] ? "✓ 保留" : "✗ 分解";
-                nameT.text = $"[{QualityName(eq.quality)}] {GetEquipName(eq)}   {mark}";
-                nameT.color = keepFlags[i] ? Color.white : Color.gray;
+                string mark = keepFlags[i] ? "<color=#8CFF9E>✓ 保留</color>" : "<color=#BFBFBF>✗ 分解</color>";
+                nameT.text = $"<color=#{ColorUtility.ToHtmlStringRGB(EquipDisplayUtil.QualityColor(eq.quality))}>[{EquipDisplayUtil.QualityName(eq.quality)}]</color> " +
+                             $"{EquipDisplayUtil.Name(eq)} Lv.{eq.level}{(eq.plus > 0 ? "+" + eq.plus : "")}  {mark}";
             }
-            // 數值
+            // 數值摘要（让玩家 3 秒內判斷要不要留）
             if (statT != null)
             {
-                float atk = GetStat(eq, "atk");
-                float def = GetStat(eq, "def");
-                statT.text = $"攻+{atk:N0}   防+{def:N0}";
+                statT.text = $"戰力 {eq.Power:N0}｜攻 {st.atk:N0} 防 {st.def:N0} 命 {st.hp:N0}" +
+                             $"｜分解 +{TopBarUI.Num(eq.SellPrice)} 金";
             }
             if (btn != null)
             {
@@ -109,7 +109,7 @@ public class RunResultUI : MonoBehaviour
             }
 
             if (keepFlags[i]) kept++;
-            else sellGold += GetSellPrice(eq);
+            else sellGold += SellOf(eq);
         }
         if (summaryText != null)
             summaryText.text = $"保留 {kept} 件  |  分解換金幣 +{sellGold:N0}";
@@ -122,7 +122,7 @@ public class RunResultUI : MonoBehaviour
         for (int i = 0; i < loot.Count; i++)
         {
             if (keepFlags[i]) keep.Add(loot[i]);
-            else sellGold += GetSellPrice(loot[i]);
+            else sellGold += SellOf(loot[i]);
         }
         Hide();
         onConfirm?.Invoke(keep, sellGold);
@@ -135,43 +135,8 @@ public class RunResultUI : MonoBehaviour
         root.interactable = false;
     }
 
-    // ---- 防禦性存取器(避免因 EquipmentInstance 欄位命名不同而崩潰)----
-    static string GetEquipName(EquipmentInstance eq)
-    {
-        if (eq == null) return "?";
-        // 優先取 def.name,再 fallback 到 ToString
-        try { return eq.def != null ? eq.def.name : eq.ToString(); }
-        catch { return eq.ToString(); }
-    }
-
-    static float GetStat(EquipmentInstance eq, string key)
-    {
-        if (eq == null) return 0;
-        try { return eq.GetStat != null ? 0 : 0; } catch { }
-        // 如果你的 EquipmentInstance 沒有 GetStat,改成直接讀欄位:
-        // if (key == "atk") return eq.finalAtk;
-        // if (key == "def") return eq.finalDef;
-        return 0;
-    }
-
-    static long GetSellPrice(EquipmentInstance eq)
-    {
-        if (eq == null) return 0;
-        try { return eq.SellPrice; } catch { return 50; } // 保底價,請改成你實際的計算
-    }
-
-    static string QualityName(int q)
-    {
-        switch (q)
-        {
-            case 0: return "普通";
-            case 1: return "精良";
-            case 2: return "稀有";
-            case 3: return "史詩";
-            case 4: return "傳說";
-            default: return "?";
-        }
-    }
+    /// <summary>分解可換金幣（統一走 EquipmentInstance.SellPrice）。</summary>
+    static long SellOf(EquipmentInstance eq) => eq != null ? eq.SellPrice : 0;
 
     static T Find<T>(Transform parent, string name) where T : Component
     {
