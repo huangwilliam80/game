@@ -39,6 +39,21 @@ public class EquipmentInstance
         }
     }
 
+    // ★ 補齊 Clone 方法
+    public EquipmentInstance Clone()
+    {
+        return new EquipmentInstance
+        {
+            defId = this.defId,
+            quality = this.quality,
+            plus = this.plus,
+            level = this.level,
+            seed = this.seed,
+            setId = this.setId,
+            affixes = this.affixes != null ? (Affix[])this.affixes.Clone() : null
+        };
+    }
+
     public void RegenerateAffixes()
     {
         var rng = new System.Random(seed);
@@ -67,7 +82,6 @@ public class EquipmentInstance
         return total;
     }
 
-    // ★ 補齊 SellPrice
     public long SellPrice => (long)(10 * (quality + 1) * (quality + 1) + plus * 5 + level * 2);
 
     public long Power => GameMath.EstimatePower(FinalStats().atk, FinalStats().def, FinalStats().hp, FinalStats().critRate, FinalStats().speed, FinalStats().special);
