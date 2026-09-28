@@ -1,50 +1,42 @@
 using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+public enum CurrencyType { Gold, Crystal, Shard }
 
 /// <summary>
-/// 全域事件中心（無縫耦合的 UI ↔ 邏輯通訊）。
-/// 所有系統只透過 GameEvents 廣播 / 訂閱，避免互相 find 物件，效能最佳。
+/// 遊戲事件中心：所有跨系統的通訊都走這裡，避免循環引用。
 /// </summary>
 public static class GameEvents
 {
-    // 資源／經驗變動（參數：資源類型, 新數量）
-    public static event Action<CurrencyType, long> OnCurrencyChanged;
-    // 掛機收益更新（每秒或每批結算時觸發）
-    public static event Action<long, long> OnIdleIncome;           // (金幣/秒, 經驗/秒)
-    // 戰利品入包（參數：装备实例）
-    public static event Action<EquipmentInstance> OnLootDropped;
-    // 背包／裝備狀態改變（需要刷新 UI）
-    public static event Action OnInventoryChanged;
-    // 角色面板改變（等級、功法、戰力）
+    // ---- 原有事件 ----
+    public static event Action<int> OnBattleStart;       // 參數: wave num
+    public static event Action OnStage;
+    public static event Action<CurrencyType, long> OnCurrency;
+    public static event Action<long, long> OnIdleIncome;
     public static event Action OnHeroChanged;
-    // 戰鬥開始／結束
-    public static event Action<int> OnBattleStart;                 // stageId
-    public static event Action<bool, BattleResult> OnBattleEnd;    // (勝利, 結果資料)
-    // 關卡進度改變
     public static event Action OnStageChanged;
-    // 通用提示訊息（飘字 toast）
     public static event Action<string> OnToast;
 
-    // ---- 廣播方法（其他系統呼叫這些）----
-    public static void RaiseCurrency(CurrencyType c, long amount) => OnCurrencyChanged?.Invoke(c, amount);
-    public static void RaiseIdleIncome(long gold, long exp) => OnIdleIncome?.Invoke(gold, exp);
-    public static void RaiseLoot(EquipmentInstance e) => OnLootDropped?.Invoke(e);
-    public static void RaiseInventory() => OnInventoryChanged?.Invoke();
+    // ---- Roguelite Run 專用事件 ----
+    public static event Action OnRunStart;
+    public static event Action OnRunEnd;
+    public static event Action<int> OnWaveCleared;       // 參數: next wave index
+    public static event Action OnChoiceRequested;
+    public static event Action<List<EquipmentInstance>> OnRunFinished;
+
+    // ---- 觸發器 ----
+    public static void RaiseBattleStart(int w) => OnBattleStart?.Invoke(w);
+    public static void RaiseStage() => OnStage?.Invoke();
+    public static void RaiseCurrency(CurrencyType t, long v) => OnCurrency?.Invoke(t, v);
+    public static void RaiseIdleIncome(long g, long e) => OnIdleIncome?.Invoke(g, e);
     public static void RaiseHero() => OnHeroChanged?.Invoke();
-    public static void RaiseBattleStart(int stage) => OnBattleStart?.Invoke(stage);
-    public static void RaiseBattleEnd(bool win, BattleResult r) => OnBattleEnd?.Invoke(win, r);
-    public static void RaiseStage() => OnStageChanged?.Invoke();
+    public static void RaiseStageChanged() => OnStageChanged?.Invoke(); 
     public static void Toast(string msg) => OnToast?.Invoke(msg);
-}
 
-public enum CurrencyType { Gold, Exp, SpiritCrystal /*靈玉*/, ForgeShard /*鍛造碎片*/ }
-
-/// <summary>戰鬥結束時的統計，供結算面板顯示。</summary>
-public class BattleResult
-{
-    public int stageId;
-    public int waveReached;
-    public float duration;
-    public System.Collections.Generic.List<EquipmentInstance> loot = new System.Collections.Generic.List<EquipmentInstance>();
-    public long goldReward;
-    public long expReward;
+    public static void RaiseRunStart() => OnRunStart?.Invoke();
+    public static void RaiseRunEnd() => OnRunEnd?.Invoke();
+    public static void RaiseWaveCleared(int nextWave) => OnWaveCleared?.Invoke(nextWave);
+    public static void RaiseChoiceRequested() => OnChoiceRequested?.Invoke();
+    public static void RaiseRunFinished(List<EquipmentInstance> loot) => OnRunFinished?.Invoke(loot);
 }
