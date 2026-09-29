@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+// ★ 修復 CS0103: The name 'GameEvents' does not exist in the current context
+// 以別名直接綁定全域事件总线，確保每個檔案都能解析到 GameEvents（不受專案載入順序影響）。
+using GameEvents = global::GameEvents;
 
 /// <summary>
 /// 背包／穿戴／強化／升階／洗鍊／合成／打造 —— 裝備系統的全部「操作」。
