@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+// ★ 修復 CS0103: The name 'GameEvents' does not exist in the current context
+// 以別名直接綁定全域事件总线，確保每個檔案都能解析到 GameEvents（不受專案載入順序影響）。
+using GameEvents = global::GameEvents;
 
 /// <summary>
 /// 上半部世界視窗:左側主角、右側敵人、血條、傷害數字池、當前 buff 列。

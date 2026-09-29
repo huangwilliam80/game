@@ -2,6 +2,9 @@ using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+// ★ 修復 CS0103: The name 'GameEvents' does not exist in the current context
+// 以別名直接綁定全域事件总线，確保每個檔案都能解析到 GameEvents（不受專案載入順序影響）。
+using GameEvents = global::GameEvents;
 
 /// <summary>
 /// 角色面板 UI：顯示角色真實屬性、戰力、經驗條，以及 8 個功法的升級按鈕。
