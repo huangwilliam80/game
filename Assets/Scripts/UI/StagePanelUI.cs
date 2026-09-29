@@ -17,12 +17,16 @@ public class StagePanelUI : MonoBehaviour
 
     readonly List<GameObject> items = new List<GameObject>();
 
+    bool listenersAdded;
     void OnEnable()
     {
         GameEvents.OnStageChanged += Refresh;
         GameEvents.OnHeroChanged += Refresh;
-        if (backBtn) backBtn.onClick.AddListener(() => UIManager.I.CloseAll());
-        if (runBtn) runBtn.onClick.AddListener(OnRunClicked);
+        if (!listenersAdded) {
+            listenersAdded = true;
+            if (backBtn) backBtn.onClick.AddListener(() => UIManager.I.CloseAll());
+            if (runBtn) runBtn.onClick.AddListener(OnRunClicked);
+        }
         GameEvents.OnRunStart += OnRunStateChanged;
         GameEvents.OnRunEnd += OnRunStateChanged;
         BuildItems();

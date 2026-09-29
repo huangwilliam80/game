@@ -17,15 +17,19 @@ public class EquipmentPanelUI : MonoBehaviour
     private EquipmentInstance selectedEquip;
     private int selectedBagIndex = -1;
 
+    bool listenersAdded;
     void OnEnable() {
         GameEvents.OnInventoryChanged += Refresh;
         GameEvents.OnHeroChanged += Refresh;
-        btnEnhance.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.Enhance(selectedEquip); });
-        btnReforge.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.Reforge(selectedEquip); });
-        btnUpgradeQ.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.UpgradeQuality(selectedEquip); });
-        btnEquipSel.onClick.AddListener(() => { if(selectedBagIndex >= 0) InventorySystem.Equip(selectedBagIndex); });
-        btnDecompose.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.Decompose(selectedEquip); });
-        btnCleanup.onClick.AddListener(() => InventorySystem.CleanupTrash());
+        if (!listenersAdded) {
+            listenersAdded = true;
+            if (btnEnhance) btnEnhance.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.Enhance(selectedEquip); });
+            if (btnReforge) btnReforge.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.Reforge(selectedEquip); });
+            if (btnUpgradeQ) btnUpgradeQ.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.UpgradeQuality(selectedEquip); });
+            if (btnEquipSel) btnEquipSel.onClick.AddListener(() => { if(selectedBagIndex >= 0) InventorySystem.Equip(selectedBagIndex); });
+            if (btnDecompose) btnDecompose.onClick.AddListener(() => { if(selectedEquip != null) InventorySystem.Decompose(selectedEquip); });
+            if (btnCleanup) btnCleanup.onClick.AddListener(() => InventorySystem.CleanupTrash());
+        }
         Refresh();
     }
     void OnDisable() {

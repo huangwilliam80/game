@@ -11,16 +11,18 @@ public class MainPanelUI : MonoBehaviour
     public TMP_Text offlineBanner;
     public Button claimBtn, forgeBtn, stageBtn, dungeonBtn;
 
+    bool listenersAdded;
     void OnEnable() {
         GameEvents.OnHeroChanged += RefreshGoal;
         GameEvents.OnStageChanged += RefreshGoal;
-        if (claimBtn) claimBtn.onClick.AddListener(OnClaim);
-        if (forgeBtn) forgeBtn.onClick.AddListener(() => UIManager.I.Open("Forge"));
-        if (stageBtn) stageBtn.onClick.AddListener(() => UIManager.I.Open("Stages"));
-        
-        // ★ 修復秘境按鈕點擊事件
-        if (dungeonBtn) dungeonBtn.onClick.AddListener(() => { if (RunController.I != null) RunController.I.StartRun(GameSave.Data.currentStage); else GameEvents.Toast("控制器未就緒"); });
-        
+        if (!listenersAdded) {
+            listenersAdded = true;
+            if (claimBtn) claimBtn.onClick.AddListener(OnClaim);
+            if (forgeBtn) forgeBtn.onClick.AddListener(() => UIManager.I.Open("Forge"));
+            if (stageBtn) stageBtn.onClick.AddListener(() => UIManager.I.Open("Stages"));
+            // ★ 修復秘境按鈕點擊事件
+            if (dungeonBtn) dungeonBtn.onClick.AddListener(() => { if (RunController.I != null) RunController.I.StartRun(GameSave.Data.currentStage); else GameEvents.Toast("控制器未就緒"); });
+        }
         ShowOfflineGreeting();
         RefreshGoal();
     }

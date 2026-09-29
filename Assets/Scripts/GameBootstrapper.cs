@@ -400,7 +400,7 @@ public class GameBootstrapper : MonoBehaviour
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var t = go.AddComponent<TextMeshProUGUI>();
         if (defaultFont != null) t.font = defaultFont;
-        t.fontSize = size; t.color = col; t.alignment = (TMPro.TextAlignmentOptions)anchor;
+        t.fontSize = size; t.color = col; t.alignment = AnchorToTMP(anchor);
         t.text = name; t.overflowMode = TextOverflowModes.Ellipsis;
 #if UNITY_2022_3_OR_NEWER || UNITY_6000_0_OR_NEWER
         t.textWrappingMode = TextWrappingModes.Normal;
@@ -408,6 +408,23 @@ public class GameBootstrapper : MonoBehaviour
         t.enableWordWrapping = true;
 #endif
         return t;
+    }
+
+    static TMPro.TextAlignmentOptions AnchorToTMP(TextAnchor a)
+    {
+        switch (a)
+        {
+            case TextAnchor.UpperLeft:    return TextAlignmentOptions.TopLeft;
+            case TextAnchor.UpperCenter:  return TextAlignmentOptions.Top;
+            case TextAnchor.UpperRight:   return TextAlignmentOptions.TopRight;
+            case TextAnchor.MiddleLeft:   return TextAlignmentOptions.Left;
+            case TextAnchor.MiddleCenter: return TextAlignmentOptions.Center;
+            case TextAnchor.MiddleRight:  return TextAlignmentOptions.Right;
+            case TextAnchor.LowerLeft:    return TextAlignmentOptions.BottomLeft;
+            case TextAnchor.LowerCenter:  return TextAlignmentOptions.Bottom;
+            case TextAnchor.LowerRight:   return TextAlignmentOptions.BottomRight;
+            default:                      return TextAlignmentOptions.Center;
+        }
     }
 
     void CreateTextIn(Transform parent, string s, int size, Color col)

@@ -14,14 +14,19 @@ public class ForgePanelUI : MonoBehaviour
     public Button backBtn;
     EquipSlot chosen = EquipSlot.Weapon;
 
+    bool listenersAdded;
     void OnEnable()
     {
-        for (int i = 0; i < slotButtons.Length; i++)
+        if (!listenersAdded)
         {
-            var s = (EquipSlot)i;
-            slotButtons[i].onClick.AddListener(() => { chosen = s; Refresh(); });
+            listenersAdded = true;
+            for (int i = 0; i < slotButtons.Length; i++)
+            {
+                var s = (EquipSlot)i;
+                slotButtons[i].onClick.AddListener(() => { chosen = s; Refresh(); });
+            }
+            if (backBtn) backBtn.onClick.AddListener(() => UIManager.I.CloseAll());
         }
-        if (backBtn) backBtn.onClick.AddListener(() => UIManager.I.CloseAll());
         GameEvents.OnInventoryChanged += Refresh;
         GameEvents.OnCurrencyChanged += OnCur;
         Refresh();

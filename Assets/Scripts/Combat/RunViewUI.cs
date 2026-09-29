@@ -32,18 +32,23 @@ public class RunViewUI : MonoBehaviour
     float lastHitTime = -1f;
     Action<int> pendingPick;   // 等待玩家點選的回调
 
+    bool btnsBound;
     void OnEnable()
     {
         GameEvents.OnRunStart += OnRunStart;
         GameEvents.OnRunEnd += OnEnd;
         GameEvents.OnRunChoice += OnChoice;
         GameEvents.OnRunWave += OnWave;
-        for (int i = 0; i < 3; i++)
+        if (!btnsBound)
         {
-            int idx = i;
-            if (choiceButtons[i]) choiceButtons[i].onClick.AddListener(() => Pick(idx));
+            btnsBound = true;
+            for (int i = 0; i < 3; i++)
+            {
+                int idx = i;
+                if (choiceButtons[i]) choiceButtons[i].onClick.AddListener(() => Pick(idx));
+            }
+            if (resultCloseBtn) resultCloseBtn.onClick.AddListener(() => Hide(resultPanel));
         }
-        if (resultCloseBtn) resultCloseBtn.onClick.AddListener(() => Hide(resultPanel));
         BuildFloatPool();
         Hide(choicePanel); Hide(resultPanel);
     }
