@@ -462,7 +462,7 @@ public class GameBootstrapper : MonoBehaviour
         var sv = CreatePanel(name, parent, new Color(.08f, .08f, .12f, .6f), aMin, aMax, Vector2.zero, Vector2.zero);
         var scroll = sv.AddComponent<ScrollRect>();
         var vp = sv;
-        var c = new GameObject("Content"); c.transform.SetParent(sv.transform, false);
+        var c = new GameObject("Content", typeof(RectTransform)); c.transform.SetParent(sv.transform, false);
         contentRT = c.GetComponent<RectTransform>();
         contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
         contentRT.pivot = new Vector2(.5f, 1); contentRT.sizeDelta = new Vector2(0, 120);

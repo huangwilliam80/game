@@ -1,9 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-// ★ 修復 CS0103: The name 'GameEvents' does not exist in the current context
-// 以別名直接綁定全域事件总线，確保每個檔案都能解析到 GameEvents（不受專案載入順序影響）。
-using GameEvents = global::GameEvents;
+
 
 /// <summary>
 /// Roguelite「靈玉秘境」run 控制器：波次自動戰鬥＋每 2 波三選一 buff＋結算戰利品。

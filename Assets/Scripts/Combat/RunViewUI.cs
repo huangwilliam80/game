@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-// ★ 修復 CS0103: The name 'GameEvents' does not exist in the current context
-// 以別名直接綁定全域事件总线，確保每個檔案都能解析到 GameEvents（不受專案載入順序影響）。
-using GameEvents = global::GameEvents;
+
 
 /// <summary>
 /// 秘境 run 的戰鬥視覺：血條、波次、傷害浮動數字、三選一 buff 面板、結算面板。
@@ -161,7 +159,7 @@ public class RunViewUI : MonoBehaviour
             floatPool[i].color = col;
             floatAge[i] = 0f;
             var rt = floatPool[i].rectTransform;
-            rt.anchorMin = rt.anchorMax = new Vector2(Random.Range(.3f, .7f), Random.Range(.45f, .8f));
+            rt.anchorMin = rt.anchorMax = new Vector2(UnityEngine.Random.Range(.3f, .7f), UnityEngine.Random.Range(.45f, .8f));
             rt.anchoredPosition = Vector2.zero;
             return;
         }

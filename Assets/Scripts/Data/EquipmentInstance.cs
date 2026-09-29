@@ -73,6 +73,7 @@ public class EquipmentInstance
     public StatBlock FinalStats()
     {
         var def = EquipmentDatabase.Get(defId);
+        if (def == null) return new StatBlock();
         float qm = 1f + quality * 0.35f, pm = 1f + plus * 0.09f, lm = 1f + (level - 1) * 0.12f;
         var baseS = def.baseStats;
         baseS.atk *= qm * pm * lm; baseS.def *= qm * pm * lm; baseS.hp *= qm * pm * lm;

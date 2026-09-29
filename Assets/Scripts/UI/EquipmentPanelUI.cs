@@ -2,9 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-// ★ 修復 CS0103: The name 'GameEvents' does not exist in the current context
-// 以別名直接綁定全域事件总线，確保每個檔案都能解析到 GameEvents（不受專案載入順序影響）。
-using GameEvents = global::GameEvents;
+
 
 public class EquipmentPanelUI : MonoBehaviour
 {
@@ -38,10 +36,14 @@ public class EquipmentPanelUI : MonoBehaviour
     }
 
     void Refresh() {
+        if (equipRow == null || bagGrid == null) return;
         for (int i = 0; i < equipRow.childCount; i++) {
             Button btn = equipRow.GetChild(i).GetComponent<Button>();
-            EquipmentInstance eq = GameSave.Data.equipped[i];
-            btn.GetComponentInChildren<TMP_Text>().text = eq != null ? EquipmentDatabase.Get(eq.defId).name : "空";
+            if (btn == null) continue;
+            EquipmentInstance eq = i < GameSave.Data.equipped.Length ? GameSave.Data.equipped[i] : null;
+            var def = eq != null ? EquipmentDatabase.Get(eq.defId) : null;
+            var txt = btn.GetComponentInChildren<TMP_Text>();
+            if (txt) txt.text = def != null ? def.name : "空";
             btn.GetComponent<Image>().color = eq != null ? eq.QualityColor : new Color(0.2f, 0.22f, 0.3f);
             int slotIndex = i;
             btn.onClick.RemoveAllListeners();
@@ -53,13 +55,14 @@ public class EquipmentPanelUI : MonoBehaviour
             GameObject cell = Instantiate(cellPrefab, bagGrid);
             cell.name = $"Cell_{i}"; cell.SetActive(true);
             EquipmentInstance eq = GameSave.Data.bags[i];
-            cell.GetComponentInChildren<TMP_Text>().text = $"+{eq.plus} {EquipmentDatabase.Get(eq.defId).name}";
+            var def = EquipmentDatabase.Get(eq.defId);
+            cell.GetComponentInChildren<TMP_Text>().text = $"+{eq.plus} {(def != null ? def.name : "?")}";
             cell.GetComponent<Image>().color = eq.QualityColor;
             int bagIdx = i;
             cell.GetComponent<Button>().onClick.RemoveAllListeners();
             cell.GetComponent<Button>().onClick.AddListener(() => SelectItem(bagIdx));
         }
-        detailText.text = "點擊背包裝備查看詳情";
+        if (detailText) detailText.text = "點擊背包裝備查看詳情";
     }
 
     void SelectItem(int bagIndex) {
