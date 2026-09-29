@@ -27,6 +27,8 @@ public class GameBootstrapper : MonoBehaviour
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = 60;
 
+        RogueBuffPool.Init();
+        TryLoadChineseFont();
         EquipmentDatabase.Init();
         CharacterSystem.Init();
         GameSave.Load();
@@ -56,6 +58,7 @@ public class GameBootstrapper : MonoBehaviour
 
     Canvas canvas;
     RectTransform rootRT;
+    TMPro.TMP_FontAsset defaultFont;   // 中文字型（若專案有 TMP 中文字型則自動套用）
 
     void BuildUI()
     {
@@ -126,6 +129,9 @@ public class GameBootstrapper : MonoBehaviour
         dbv.bedSlots = beds;
         dbv.ghostPrefab = ghostT.gameObject;
         ghostT.gameObject.SetActive(false);
+
+        // -- run 戰鬥視覺（血條／傷害數字／三選一 buff／結算）--
+        BuildRunView(main.transform);
 
         mp.goalLabel = CreateText("Goal", main.transform, 28, new Color(.95f, .95f, .8f), TextAnchor.MiddleCenter);
         SetRect(mp.goalLabel.rt(), new Vector2(.05f, .42f), new Vector2(.95f, .54f), Vector2.zero, Vector2.zero);
@@ -251,6 +257,17 @@ public class GameBootstrapper : MonoBehaviour
         top.Refresh();
     }
 
+    void TryLoadChineseFont()
+    {
+        try
+        {
+            defaultFont = Resources.Load<TMPro.TMP_FontAsset>("Fonts/SourceHanSansCN-Bold SDF");
+            if (defaultFont == null)
+                defaultFont = Resources.Load<TMPro.TMP_FontAsset>("SourceHanSansCN-Bold SDF");
+        }
+        catch { defaultFont = null; }
+    }
+
     void EnsureEventSystem()
     {
         if (UnityEngine.Object.FindAnyObjectByType<EventSystem>() != null) return;
@@ -262,6 +279,99 @@ public class GameBootstrapper : MonoBehaviour
 #else
         es.AddComponent<StandaloneInputModule>();
 #endif
+    }
+
+    /// <summary>在「主面板」上生成 run 戰鬥視覺 UI，並掛上 RunViewUI。</summary>
+    RunViewUI runView;
+    void BuildRunView(Transform mainT)
+    {
+        // 血條容器（蓋在 StageArea 上方）
+        var vroot = CreatePanel("RunView", mainT, new Color(0, 0, 0, 0),
+            new Vector2(.05f, .55f), new Vector2(.95f, .95f), Vector2.zero, Vector2.zero);
+
+        var view = vroot.AddComponent<RunViewUI>();
+
+        view.heroFill = CreateBar("HeroBar", vroot.transform, new Color(.3f, .8f, .4f),
+            new Vector2(.03f, .9f), new Vector2(.47f, .97f));
+        view.enemyFill = CreateBar("EnemyBar", vroot.transform, new Color(.85f, .3f, .35f),
+            new Vector2(.53f, .9f), new Vector2(.97f, .97f));
+        view.heroLabel = CreateText("HeroTxt", vroot.transform, 22, Color.white);
+        SetRect(view.heroLabel.rt(), new Vector2(.03f, .82f), new Vector2(.47f, .9f), Vector2.zero, Vector2.zero);
+        view.enemyLabel = CreateText("EnemyTxt", vroot.transform, 22, Color.white);
+        SetRect(view.enemyLabel.rt(), new Vector2(.53f, .82f), new Vector2(.97f, .9f), Vector2.zero, Vector2.zero);
+        view.waveLabel = CreateText("WaveTxt", vroot.transform, 26, new Color(1f, .9f, .5f));
+        SetRect(view.waveLabel.rt(), new Vector2(.3f, .72f), new Vector2(.7f, .82f), Vector2.zero, Vector2.zero);
+        view.buffLabel = CreateText("BuffTxt", vroot.transform, 20, new Color(.7f, .85f, 1f));
+        SetRect(view.buffLabel.rt(), new Vector2(.03f, .63f), new Vector2(.97f, .72f), Vector2.zero, Vector2.zero);
+
+        // 傷害浮動數字池容器
+        var froots = CreatePanel("FloatRoot", vroot.transform, new Color(0, 0, 0, 0),
+            new Vector2(0, 0), new Vector2(1, .62f), Vector2.zero, Vector2.zero);
+        view.floatRoot = froots.GetComponent<RectTransform>();
+
+        // ---- 三選一 buff 面板（置中、壓暗背景）----
+        var choice = CreatePanel("ChoicePanel", mainT, new Color(0, 0, 0, .75f),
+            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Stretch(choice.GetComponent<RectTransform>());
+        var title = CreateText("Title", choice.transform, 40, new Color(1f, .9f, .5f));
+        SetRect(title.rt(), new Vector2(.1f, .68f), new Vector2(.9f, .78f), Vector2.zero, Vector2.zero);
+        title.text = "⚔ 選擇一張增益卡";
+        view.choicePanel = choice;
+        for (int i = 0; i < 3; i++)
+        {
+            float x0 = .06f + i * .30f;
+            var b = CreateButton("卡" + (i + 1), choice.transform, new Color(.25f, .3f, .5f));
+            var rt = b.rt();
+            rt.anchorMin = new Vector2(x0, .3f); rt.anchorMax = new Vector2(x0 + .28f, .64f);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            view.choiceButtons[i] = b;
+            var t = b.GetComponentInChildren<TMP_Text>();
+            t.fontSize = 26; t.text = "";
+            view.choiceTexts[i] = t;
+        }
+
+        // ---- 結算面板 ----
+        var result = CreatePanel("ResultPanel", mainT, new Color(0, 0, 0, .8f),
+            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Stretch(result.GetComponent<RectTransform>());
+        view.resultPanel = result;
+        view.resultText = CreateText("ResultTxt", result.transform, 36, Color.white);
+        SetRect(view.resultText.rt(), new Vector2(.1f, .45f), new Vector2(.9f, .8f), Vector2.zero, Vector2.zero);
+        var close = CreateButton("返回", result.transform, new Color(.3f, .45f, .3f));
+        SetRect(close.rt(), new Vector2(.3f, .25f), new Vector2(.7f, .37f), Vector2.zero, Vector2.zero);
+        view.resultCloseBtn = close;
+
+        runView = view;
+
+        // ---- WorldView：池化飄字＋波次橫幅（零 Instantiate per hit）----
+        var wvGO = new GameObject("WorldView"); wvGO.transform.SetParent(vroot.transform, false);
+        var wv = wvGO.AddComponent<WorldView>();
+        wv.worldArea = froots.GetComponent<RectTransform>();
+        wv.heroHpFill = view.heroFill;
+        wv.enemyHpFill = view.enemyFill;
+        wv.heroHpText = view.heroLabel;
+        wv.enemyNameText = view.enemyLabel;
+        wv.waveBanner = view.waveLabel;
+        wv.buffLabel = view.buffLabel != null ? view.buffLabel.gameObject.transform : null;
+        var dmgTpl = new GameObject("DmgTpl", typeof(RectTransform));
+        dmgTpl.transform.SetParent(froots.transform, false);
+        var dt = dmgTpl.AddComponent<TextMeshProUGUI>();
+        dt.fontSize = 36; dt.alignment = TextAlignmentOptions.Center;
+        dmgTpl.AddComponent<CanvasGroup>();
+        dmgTpl.SetActive(false);
+        wv.dmgNumberPrefab = dmgTpl;
+        wv.ApplyFontToPool(defaultFont);
+    }
+
+    /// <summary>Image.type=Filled 的血條：底條＋填充條。</summary>
+    Image CreateBar(string name, Transform parent, Color fillCol, Vector2 aMin, Vector2 aMax)
+    {
+        var back = CreatePanel(name + "Bg", parent, new Color(.15f, .15f, .2f), aMin, aMax, Vector2.zero, Vector2.zero);
+        var fg = new GameObject(name); fg.transform.SetParent(back.transform, false);
+        var img = fg.AddComponent<Image>(); img.sprite = whiteSq; img.color = fillCol;
+        img.type = Image.Type.Filled; img.fillMethod = Image.FillMethod.Horizontal; img.fillAmount = 1f;
+        Stretch(fg.GetComponent<RectTransform>());
+        return img;
     }
 
     static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero; }
@@ -289,6 +399,7 @@ public class GameBootstrapper : MonoBehaviour
     {
         var go = new GameObject(name); go.transform.SetParent(parent, false);
         var t = go.AddComponent<TextMeshProUGUI>();
+        if (defaultFont != null) t.font = defaultFont;
         t.fontSize = size; t.color = col; t.alignment = (TMPro.TextAlignmentOptions)anchor;
         t.text = name; t.overflowMode = TextOverflowModes.Ellipsis;
 #if UNITY_2022_3_OR_NEWER || UNITY_6000_0_OR_NEWER

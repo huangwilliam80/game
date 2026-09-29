@@ -1,16 +1,25 @@
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 秘境 run 的戰鬥視覺：血條、波次、傷害浮動數字、三選一 buff 面板、結算面板。
+/// ★ 事件簽名與 GameEvents 保持一致（OnRunChoice = Action&lt;List&lt;RogueBuffDef&gt;, Action&lt;int&gt;&gt;）。
+/// </summary>
 public class RunViewUI : MonoBehaviour
 {
     public Image heroFill, enemyFill;
-    public TMP_Text heroLabel, enemyLabel, waveLabel;
+    public TMP_Text heroLabel, enemyLabel, waveLabel, buffLabel;
     public RectTransform floatRoot;
+
+    [Header("三選一 buff 面板")]
     public GameObject choicePanel;
     public Button[] choiceButtons = new Button[3];
     public TMP_Text[] choiceTexts = new TMP_Text[3];
+
+    [Header("結算面板")]
     public GameObject resultPanel;
     public TMP_Text resultText;
     public Button resultCloseBtn;
@@ -18,26 +27,43 @@ public class RunViewUI : MonoBehaviour
     readonly List<TMP_Text> floatPool = new List<TMP_Text>();
     readonly List<float> floatAge = new List<float>();
     float lastHitTime = -1f;
+    Action<int> pendingPick;   // 等待玩家點選的回调
 
     void OnEnable()
     {
-        GameEvents.OnRunStart += () => { Hide(choicePanel); Hide(resultPanel); lastHitTime = -1f; };
+        GameEvents.OnRunStart += OnRunStart;
         GameEvents.OnRunEnd += OnEnd;
         GameEvents.OnRunChoice += OnChoice;
-        GameEvents.OnRunWave += (c, t) => { if (waveLabel) waveLabel.text = $"波次 {c}/{t}"; };
+        GameEvents.OnRunWave += OnWave;
         for (int i = 0; i < 3; i++)
         {
             int idx = i;
-            if (choiceButtons[i]) choiceButtons[i].onClick.AddListener(() => { Hide(choicePanel); if (RunController.I) RunController.I.PickBuff(idx); });
+            if (choiceButtons[i]) choiceButtons[i].onClick.AddListener(() => Pick(idx));
         }
         if (resultCloseBtn) resultCloseBtn.onClick.AddListener(() => Hide(resultPanel));
-        BuildFloatPool(); Hide(choicePanel); Hide(resultPanel);
+        BuildFloatPool();
+        Hide(choicePanel); Hide(resultPanel);
     }
+
     void OnDisable()
     {
+        GameEvents.OnRunStart -= OnRunStart;
         GameEvents.OnRunEnd -= OnEnd;
         GameEvents.OnRunChoice -= OnChoice;
+        GameEvents.OnRunWave -= OnWave;
     }
+
+    void OnRunStart()
+    {
+        Hide(choicePanel); Hide(resultPanel);
+        lastHitTime = -1f; pendingPick = null;
+    }
+
+    void OnWave(int cur, int total)
+    {
+        if (waveLabel) waveLabel.text = $"波次 {cur}/{total}";
+    }
+
     static void Hide(GameObject g) { if (g) g.SetActive(false); }
 
     void BuildFloatPool()
@@ -54,15 +80,25 @@ public class RunViewUI : MonoBehaviour
         }
     }
 
-    void OnChoice(RunBuffChoice c)
+    void OnChoice(List<RogueBuffDef> options, Action<int> onPick)
     {
-        if (!choicePanel) return;
+        pendingPick = onPick;
+        if (!choicePanel) { pendingPick?.Invoke(0); pendingPick = null; return; }
         for (int i = 0; i < 3; i++)
         {
-            choiceTexts[i].text = $"{c.options[i].name}\n{c.options[i].desc}";
-            choiceButtons[i].gameObject.SetActive(true);
+            bool has = i < options.Count;
+            if (choiceTexts[i])
+                choiceTexts[i].text = has ? $"{options[i].name}\n{options[i].desc}" : "";
+            if (choiceButtons[i]) choiceButtons[i].gameObject.SetActive(has);
         }
         choicePanel.SetActive(true);
+    }
+
+    void Pick(int idx)
+    {
+        Hide(choicePanel);
+        var cb = pendingPick; pendingPick = null;
+        cb?.Invoke(idx);
     }
 
     void OnEnd()
@@ -71,7 +107,7 @@ public class RunViewUI : MonoBehaviour
         var rc = RunController.I;
         if (!resultPanel || !rc) return;
         resultText.text = rc.LastRunWin
-            ? $"<color=#7CFC9E>秘境通關！</color>第 {rc.Stage} 夜\n靈玉 +{rc.RunCrystal}・金幣 +{TopBarUI.Num(rc.RunGold)}\n戰利品 {rc.RunLoot.Count + 1} 件已入背包"
+            ? $"<color=#7CFC9E>秘境通關！</color>第 {rc.Stage} 夜\n靈玉 +{rc.RunCrystal}・金幣 +{TopBarUI.Num(rc.RunGold)}\n戰利品 {rc.RunLoot.Count} 件已入背包"
             : $"<color=#FF8A8A>歷練失敗…</color>撐到第 {rc.Wave} 波\n安慰獎 靈玉 +{rc.RunCrystal}";
         resultPanel.SetActive(true);
     }
@@ -82,10 +118,13 @@ public class RunViewUI : MonoBehaviour
         bool run = rc != null && rc.IsRunning;
         if (heroFill) heroFill.gameObject.SetActive(run);
         if (enemyFill) enemyFill.gameObject.SetActive(run);
+        if (buffLabel) buffLabel.text = run && rc.OwnedBuffs.Count > 0
+            ? "Buff: " + string.Join("、", System.Linq.Enumerable.Select(rc.OwnedBuffs, b => b.name))
+            : "";
         if (!run) return;
 
-        heroFill.fillAmount = Mathf.Clamp01(rc.HeroHp / Mathf.Max(1f, rc.HeroMaxHp));
-        enemyFill.fillAmount = Mathf.Clamp01(rc.EnemyHp / Mathf.Max(1f, rc.EnemyMaxHp));
+        if (heroFill) heroFill.fillAmount = Mathf.Clamp01(rc.HeroHp / Mathf.Max(1f, rc.HeroMaxHp));
+        if (enemyFill) enemyFill.fillAmount = Mathf.Clamp01(rc.EnemyHp / Mathf.Max(1f, rc.EnemyMaxHp));
         if (heroLabel) heroLabel.text = $"我方 {(int)Mathf.Max(0f, rc.HeroHp)}/{(int)rc.HeroMaxHp}";
         if (enemyLabel) enemyLabel.text = $"{rc.EnemyName} {(int)Mathf.Max(0f, rc.EnemyHp)}/{(int)rc.EnemyMaxHp}";
 
